@@ -1,25 +1,40 @@
-# Trio
+<p align="center">
+  <a href="https://github.com/Fliver-OSP/trio">
+    <img src=".github/assets/trio-logo.png" alt="Trio" width="128" />
+  </a>
+</p>
 
-Paper plugin foundation library for config, language files, MiniMessage
-messages, and nested commands. Open source under Apache-2.0.
+<p align="center">
+  <strong>Trio</strong>
+</p>
 
-Trio is **not** Fliver, Live Chat, or Dynamic Forms. It has no Fliver
-pairing, tunnels, or cloud dependency. Use it in any Paper plugin.
+<p align="center">
+  <a href="https://github.com/Fliver-OSP"><img src="https://img.shields.io/badge/made%20by-Fliver--OSP-111111?style=flat-square" alt="Made by Fliver-OSP" /></a>
+  <a href="https://github.com/Fliver-OSP/trio/releases"><img src="https://img.shields.io/badge/version-0.1.0--beta-blue?style=flat-square" alt="Version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="License" /></a>
+  <a href="https://papermc.io"><img src="https://img.shields.io/badge/Paper-1.20%2B-brightgreen?style=flat-square" alt="Paper" /></a>
+</p>
 
-- **Repository:** https://github.com/Fliver-OSP/trio
-- **Coordinates:** `net.fliver:trio:0.1.0-beta`
-- **Paper:** 1.20+ (compiled against Paper API 1.20.1)
-- **Java:** 17+
+---
 
-## Install (JitPack)
+## Getting Started
+
+Trio helps you wire config, language files, MiniMessage messages, and nested
+commands in a Paper plugin. It does not talk to Fliver or any cloud service —
+shade it into your jar like any other library.
+
+- Example: [`examples/hello-trio`](examples/hello-trio)
+- Coordinates: `net.fliver:trio:0.1.0-beta` (Java 17+)
+
+### Install
+
+JitPack (needs a git tag):
 
 ```xml
-<repositories>
-  <repository>
-    <id>jitpack.io</id>
-    <url>https://jitpack.io</url>
-  </repository>
-</repositories>
+<repository>
+  <id>jitpack.io</id>
+  <url>https://jitpack.io</url>
+</repository>
 
 <dependency>
   <groupId>com.github.Fliver-OSP</groupId>
@@ -28,38 +43,23 @@ pairing, tunnels, or cloud dependency. Use it in any Paper plugin.
 </dependency>
 ```
 
-Gradle:
-
 ```gradle
-repositories {
-  maven { url "https://jitpack.io" }
-}
-
+repositories { maven { url "https://jitpack.io" } }
 dependencies {
-  compileOnly("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
   implementation("com.github.Fliver-OSP:trio:v0.1.0-beta")
 }
 ```
 
-Shade `trio` into your plugin jar (or publish it as a soft-depend later).
-Until a Git tag exists, build from source with Maven instead.
-
-## Build from source
+Or from this repo:
 
 ```
 mvn clean install
-```
-
-Example plugin (after install):
-
-```
 mvn -f examples/hello-trio/pom.xml package
 ```
 
-## Minimal usage
+### Usage
 
-Ship `config.yml` and `lang/en_US.yml` in your plugin resources. Declare
-commands in `plugin.yml`. Then:
+Ship `config.yml` and `lang/en_US.yml`, declare the command in `plugin.yml`:
 
 ```java
 Trio trio = Trio.create(this);
@@ -74,24 +74,14 @@ trio.bindCommand(
             trio.messages().send(sender, "hello", "player", sender.getName())));
 ```
 
-Language values use [MiniMessage](https://docs.advntr.dev/minimessage/format.html)
-with `%placeholder%` substitution:
-
 ```yaml
 prefix: "<gray>[MyPlugin]</gray> "
 hello: "<green>Hello, %player%!</green>"
 ```
 
-## Modules
+---
 
-| Class | Role |
-|---|---|
-| `Trio` | Entry point |
-| `Configs` | Default config save/reload and typed getters |
-| `Lang` | YAML language files under `lang/` |
-| `Messages` | Prefixed MiniMessage sends |
-| `Commands` | Nested subcommands, permissions, tab complete |
+## Contributing
 
-## License
-
-Apache License 2.0. See [LICENSE](LICENSE).
+Contributions are welcome. See [Contributing](CONTRIBUTING.md) for build
+steps and PR guidelines.
