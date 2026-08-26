@@ -1,0 +1,16 @@
+name: HelloTrio
+version: ${project.version}
+main: net.fliver.trio.example.HelloTrioPlugin
+api-version: '1.20'
+description: Minimal Paper plugin that demonstrates Trio.
+authors: [Fliver]
+commands:
+  hello:
+    description: Say hello via Trio.
+    usage: /hello [reload]
+    permission: hellotrio.use
+permissions:
+  hellotrio.use:
+    default: true
+  hellotrio.reload:
+    default: op

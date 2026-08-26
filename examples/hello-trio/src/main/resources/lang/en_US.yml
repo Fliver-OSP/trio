@@ -1,0 +1,3 @@
+prefix: "<gray>[HelloTrio]</gray> "
+hello: "<green>Hello, %player%!</green>"
+reloaded: "<yellow>Config and language reloaded.</yellow>"
