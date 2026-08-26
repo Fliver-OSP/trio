@@ -5,10 +5,6 @@
 </p>
 
 <p align="center">
-  <strong>Trio</strong>
-</p>
-
-<p align="center">
   <a href="https://github.com/Fliver-OSP"><img src="https://img.shields.io/badge/made%20by-Fliver--OSP-111111?style=flat-square" alt="Made by Fliver-OSP" /></a>
   <a href="https://github.com/Fliver-OSP/trio/releases"><img src="https://img.shields.io/badge/version-0.1.0--beta-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="License" /></a>
