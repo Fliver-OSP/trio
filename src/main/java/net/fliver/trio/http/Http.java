@@ -15,7 +15,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Http {
-  private static final String USER_AGENT = "Trio/0.2.0-beta";
+  private static final String USER_AGENT = "Trio/0.3.0-beta";
 
   private final JavaPlugin plugin;
   private final HttpClient client;

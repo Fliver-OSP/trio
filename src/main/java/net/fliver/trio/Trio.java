@@ -7,7 +7,11 @@ import net.fliver.trio.cooldown.Cooldowns;
 import net.fliver.trio.depend.SoftDepends;
 import net.fliver.trio.http.Http;
 import net.fliver.trio.lang.Lang;
+import net.fliver.trio.menu.Menus;
 import net.fliver.trio.message.Messages;
+import net.fliver.trio.perm.Permissions;
+import net.fliver.trio.schedule.Scheduler;
+import net.fliver.trio.storage.SqliteStore;
 import net.fliver.trio.storage.YamlStore;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -17,7 +21,11 @@ public final class Trio {
   private final Cooldowns cooldowns;
   private final Http http;
   private final SoftDepends softDepends;
+  private final Scheduler scheduler;
+  private final Menus menus;
+  private final Permissions permissions;
   private final ConcurrentHashMap<String, YamlStore> stores = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, SqliteStore> sqliteStores = new ConcurrentHashMap<>();
   private Lang lang;
   private Messages messages;
 
@@ -27,6 +35,9 @@ public final class Trio {
     this.cooldowns = new Cooldowns();
     this.http = Http.of(plugin);
     this.softDepends = new SoftDepends();
+    this.scheduler = Scheduler.of(plugin);
+    this.menus = Menus.of(plugin);
+    this.permissions = new Permissions();
   }
 
   public static Trio create(JavaPlugin plugin) {
@@ -56,8 +67,24 @@ public final class Trio {
     return softDepends;
   }
 
+  public Scheduler scheduler() {
+    return scheduler;
+  }
+
+  public Menus menus() {
+    return menus;
+  }
+
+  public Permissions permissions() {
+    return permissions;
+  }
+
   public YamlStore storage(String name) {
     return stores.computeIfAbsent(name, key -> YamlStore.of(plugin, key));
+  }
+
+  public SqliteStore sqlite(String name) {
+    return sqliteStores.computeIfAbsent(name, key -> SqliteStore.of(plugin, key));
   }
 
   public Lang lang() {

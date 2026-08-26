@@ -7,7 +7,7 @@ authors: [Fliver]
 commands:
   hello:
     description: Say hello via Trio.
-    usage: /hello [reload|http]
+    usage: /hello [reload|http|menu]
     permission: hellotrio.use
 permissions:
   hellotrio.use:
@@ -15,4 +15,8 @@ permissions:
   hellotrio.reload:
     default: op
   hellotrio.http:
+    default: op
+  hellotrio.menu:
+    default: true
+  hellotrio.admin:
     default: op

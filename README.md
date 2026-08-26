@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Fliver-OSP"><img src="https://img.shields.io/badge/made%20by-Fliver-111111?style=flat-square" alt="Made by Fliver-OSP" /></a>
-  <a href="https://github.com/Fliver-OSP/trio/releases"><img src="https://img.shields.io/badge/version-0.2.0--beta-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/Fliver-OSP/trio/releases"><img src="https://img.shields.io/badge/version-0.3.0--beta-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="License" /></a>
   <a href="https://papermc.io"><img src="https://img.shields.io/badge/Paper-1.20%2B-brightgreen?style=flat-square" alt="Paper" /></a>
 </p>
@@ -17,11 +17,12 @@
 
 Trio helps you wire the usual Paper plugin plumbing: config, language files,
 MiniMessage messages, nested commands, cooldowns, outbound HTTP, soft-depends,
-and YAML storage. It does not talk to Fliver or any cloud service — shade it
+YAML and SQLite storage, scheduler helpers, chest menus, and permissions. It
+does not talk to Fliver or any cloud service — shade it (and `sqlite-jdbc`)
 into your jar like any other library.
 
 - Example: [`examples/hello-trio`](examples/hello-trio)
-- Coordinates: `net.fliver:trio:0.2.0-beta` (Java 17+)
+- Coordinates: `net.fliver:trio:0.3.0-beta` (Java 17+)
 
 ### Install
 
@@ -36,14 +37,14 @@ JitPack (needs a git tag):
 <dependency>
   <groupId>com.github.Fliver-OSP</groupId>
   <artifactId>trio</artifactId>
-  <version>v0.2.0-beta</version>
+  <version>v0.3.0-beta</version>
 </dependency>
 ```
 
 ```gradle
 repositories { maven { url "https://jitpack.io" } }
 dependencies {
-  implementation("com.github.Fliver-OSP:trio:v0.2.0-beta")
+  implementation("com.github.Fliver-OSP:trio:v0.3.0-beta")
 }
 ```
 
@@ -82,9 +83,14 @@ Also available on the same `Trio` instance:
 trio.cooldowns().ready("shop", playerId, 5_000L);
 trio.http().get(url, response -> {}, error -> {});
 trio.softDepends().present("Vault");
+trio.scheduler().later(() -> {}, 20L);
+trio.menus().chest("Shop", 3).set(13, item, click -> {}).open(player);
+trio.permissions().register("myplugin.use", PermissionDefault.TRUE);
 YamlStore store = trio.storage("players");
 store.set(uuid, "coins", 10);
 store.save(uuid);
+SqliteStore db = trio.sqlite("players");
+db.execute("CREATE TABLE IF NOT EXISTS coins (uuid TEXT PRIMARY KEY, amount INT)");
 ```
 
 ---
