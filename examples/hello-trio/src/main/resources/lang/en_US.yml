@@ -1,3 +1,7 @@
 prefix: "<gray>[HelloTrio]</gray> "
-hello: "<green>Hello, %player%!</green>"
+hello: "<green>Hello, %player%!</green> <gray>(uses: %uses%)</gray>"
 reloaded: "<yellow>Config and language reloaded.</yellow>"
+cooldown: "<red>Wait %seconds%s.</red>"
+players-only: "<red>Players only.</red>"
+http-ok: "<green>HTTP %status%</green>"
+http-fail: "<red>HTTP failed: %error%</red>"

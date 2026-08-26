@@ -6,14 +6,14 @@
 
   <groupId>net.fliver</groupId>
   <artifactId>trio</artifactId>
-  <version>0.1.0-beta</version>
+  <version>0.2.0-beta</version>
   <packaging>jar</packaging>
 
   <name>Trio</name>
   <description>
-    Paper plugin foundation library — config, language files, messages, and
-    commands. Independent of Fliver products. Shade or depend on it from your
-    own plugin.
+    Paper plugin foundation library — config, language, messages, commands,
+    cooldowns, HTTP, soft-depends, and YAML storage. Independent of Fliver
+    products. Shade or depend on it from your own plugin.
   </description>
   <url>https://github.com/Fliver-OSP/trio</url>
 
