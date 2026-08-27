@@ -2,6 +2,8 @@ package net.fliver.trio.platform;
 
 import java.util.Locale;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
@@ -14,10 +16,12 @@ public final class Platform {
     UNKNOWN
   }
 
+  private static final ServerVersion V_1_17 = ServerVersion.of(1, 17);
   private static final ServerVersion V_1_20_5 = ServerVersion.of(1, 20, 5);
   private static final ServerVersion V_1_20_6 = ServerVersion.of(1, 20, 6);
   private static final ServerVersion V_1_21 = ServerVersion.of(1, 21);
   private static final ServerVersion V_26_1 = ServerVersion.of(26, 1);
+  private static final Pattern JAVA_FEATURE = Pattern.compile("(\\d+)");
 
   private static volatile Platform cached;
 
@@ -128,7 +132,7 @@ public final class Platform {
     }
     logged = true;
     Logger log = plugin.getLogger();
-    int runtime = Runtime.version().feature();
+    int runtime = currentJavaFeature();
     StringBuilder line = new StringBuilder();
     line.append("Trio on ")
         .append(kind.name())
@@ -155,13 +159,35 @@ public final class Platform {
     }
   }
 
+  static int currentJavaFeature() {
+    String version = System.getProperty("java.specification.version");
+    if (version == null || version.trim().isEmpty()) {
+      version = System.getProperty("java.version", "8");
+    }
+    Matcher matcher = JAVA_FEATURE.matcher(version);
+    if (!matcher.find()) {
+      return 8;
+    }
+    int major = Integer.parseInt(matcher.group(1));
+    if (major == 1 && matcher.find()) {
+      return Integer.parseInt(matcher.group(1));
+    }
+    return major;
+  }
+
   private static ServerVersion readMinecraftVersion() {
     try {
-      Object version = Bukkit.getServer().getClass().getMethod("getMinecraftVersion").invoke(Bukkit.getServer());
-      if (version instanceof String text && !text.isBlank()) {
-        return ServerVersion.parse(text);
+      Object version =
+          Bukkit.getServer().getClass().getMethod("getMinecraftVersion").invoke(Bukkit.getServer());
+      if (version instanceof String) {
+        String text = (String) version;
+        if (text != null && !text.trim().isEmpty()) {
+          return ServerVersion.parse(text);
+        }
       }
     } catch (ReflectiveOperationException ignored) {
+      // older servers
+    } catch (Throwable ignored) {
       // older servers
     }
     try {
@@ -170,7 +196,7 @@ public final class Platform {
       String core = dash > 0 ? bukkit.substring(0, dash) : bukkit;
       return ServerVersion.parse(core);
     } catch (Throwable t) {
-      return ServerVersion.of(1, 20);
+      return ServerVersion.of(1, 8, 8);
     }
   }
 
@@ -181,7 +207,10 @@ public final class Platform {
     if (version.atLeast(V_1_21) || version.atLeast(V_1_20_5)) {
       return 21;
     }
-    return 17;
+    if (version.atLeast(V_1_17)) {
+      return 17;
+    }
+    return 8;
   }
 
   private static boolean probeBrigadierLifecycle() {
@@ -195,6 +224,8 @@ public final class Platform {
       return true;
     } catch (ReflectiveOperationException e) {
       return false;
+    } catch (Throwable e) {
+      return false;
     }
   }
 
@@ -202,12 +233,13 @@ public final class Platform {
     try {
       Class.forName(name);
       return true;
-    } catch (ClassNotFoundException | NoClassDefFoundError e) {
+    } catch (ClassNotFoundException e) {
+      return false;
+    } catch (NoClassDefFoundError e) {
       return false;
     }
   }
 
-  /** Exposed for tests that cannot boot a server. */
   static Platform forTests(
       Kind kind,
       ServerVersion version,

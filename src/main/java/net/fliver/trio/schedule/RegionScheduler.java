@@ -123,14 +123,17 @@ public final class RegionScheduler {
       return Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, delay);
     }
     // Folia has no delayed async helper in older builds — hop to async after a global delay.
-    AtomicReference<Object> handle = new AtomicReference<>();
+    final AtomicReference<Object> handle = new AtomicReference<Object>();
     Object delayed =
         runLater(
             plugin,
-            () -> {
-              Object asyncHandle = runAsync(plugin, task);
-              if (asyncHandle != null) {
-                handle.set(asyncHandle);
+            new Runnable() {
+              @Override
+              public void run() {
+                Object asyncHandle = runAsync(plugin, task);
+                if (asyncHandle != null) {
+                  handle.set(asyncHandle);
+                }
               }
             },
             delay);
@@ -223,16 +226,16 @@ public final class RegionScheduler {
     if (handle == null) {
       return;
     }
-    if (handle instanceof Cancellable cancellable) {
-      cancellable.cancel();
+    if (handle instanceof Cancellable) {
+      ((Cancellable) handle).cancel();
       return;
     }
-    if (handle instanceof BukkitTask bukkitTask) {
-      bukkitTask.cancel();
+    if (handle instanceof BukkitTask) {
+      ((BukkitTask) handle).cancel();
       return;
     }
-    if (handle instanceof Number number) {
-      Bukkit.getScheduler().cancelTask(number.intValue());
+    if (handle instanceof Number) {
+      Bukkit.getScheduler().cancelTask(((Number) handle).intValue());
       return;
     }
     if (taskCancel != null) {
@@ -271,8 +274,13 @@ public final class RegionScheduler {
     };
   }
 
-  private static Consumer<Object> consumer(Runnable task) {
-    return scheduledTask -> task.run();
+  private static Consumer<Object> consumer(final Runnable task) {
+    return new Consumer<Object>() {
+      @Override
+      public void accept(Object scheduledTask) {
+        task.run();
+      }
+    };
   }
 
   public interface Cancellable {

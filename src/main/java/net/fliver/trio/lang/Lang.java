@@ -6,15 +6,13 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Lang {
   private static final String DEFAULT_CODE = "en_US";
   private static final Pattern SAFE_CODE = Pattern.compile("^[A-Za-z0-9_-]{1,32}$");
-  private static final MiniMessage MINI = MiniMessage.miniMessage();
 
   private final YamlConfiguration messages;
 
@@ -33,14 +31,15 @@ public final class Lang {
 
     String code = requestedCode;
     if (code == null || !SAFE_CODE.matcher(code).matches()) {
-      logger.warning("Invalid language code — falling back to " + DEFAULT_CODE + ".");
+      logger.warning("Invalid language code - falling back to " + DEFAULT_CODE + ".");
       code = DEFAULT_CODE;
     }
 
     File requested = new File(langFolder, code + ".yml");
     if (!requested.isFile()) {
       if (!code.equals(DEFAULT_CODE)) {
-        logger.warning("Language file \"" + code + ".yml\" not found — falling back to " + DEFAULT_CODE + ".");
+        logger.warning(
+            "Language file \"" + code + ".yml\" not found - falling back to " + DEFAULT_CODE + ".");
       }
       requested = new File(langFolder, DEFAULT_CODE + ".yml");
     }
@@ -49,7 +48,7 @@ public final class Lang {
       return new Lang(YamlConfiguration.loadConfiguration(requested));
     }
 
-    logger.warning("Could not read a language file from disk — loading bundled defaults.");
+    logger.warning("Could not read a language file from disk - loading bundled defaults.");
     InputStream bundled = plugin.getResource("lang/" + DEFAULT_CODE + ".yml");
     if (bundled == null) {
       return new Lang(new YamlConfiguration());
@@ -74,12 +73,19 @@ public final class Lang {
     return apply(template, placeholders);
   }
 
-  public Component component(String key, String... placeholders) {
-    return MINI.deserialize(raw(key, placeholders));
+  public String colored(String key, String... placeholders) {
+    String text = raw(key, placeholders);
+    if (AdventureBridge.looksLikeMiniMessage(text) && AdventureBridge.available()) {
+      return AdventureBridge.toLegacy(text);
+    }
+    return ChatColor.translateAlternateColorCodes('&', text);
   }
 
   private static String apply(String template, String... placeholders) {
     String out = template;
+    if (placeholders == null) {
+      return out;
+    }
     for (int i = 0; i + 1 < placeholders.length; i += 2) {
       out = out.replace("%" + placeholders[i] + "%", placeholders[i + 1]);
     }

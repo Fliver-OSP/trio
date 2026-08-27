@@ -18,14 +18,14 @@ public final class ServerVersion implements Comparable<ServerVersion> {
   }
 
   public static ServerVersion parse(String input) {
-    if (input == null || input.isBlank()) {
+    if (input == null || input.trim().isEmpty()) {
       throw new IllegalArgumentException("version");
     }
     String trimmed = input.trim();
     Matcher matcher = TOKEN.matcher(trimmed);
-    List<Integer> numbers = new ArrayList<>();
+    List<Integer> numbers = new ArrayList<Integer>();
     while (matcher.find()) {
-      numbers.add(Integer.parseInt(matcher.group(1)));
+      numbers.add(Integer.valueOf(Integer.parseInt(matcher.group(1))));
       if (numbers.size() >= 4) {
         break;
       }
@@ -35,7 +35,7 @@ public final class ServerVersion implements Comparable<ServerVersion> {
     }
     int[] parts = new int[numbers.size()];
     for (int i = 0; i < numbers.size(); i++) {
-      parts[i] = numbers.get(i);
+      parts[i] = numbers.get(i).intValue();
     }
     return new ServerVersion(trimmed, parts);
   }
@@ -90,10 +90,10 @@ public final class ServerVersion implements Comparable<ServerVersion> {
     if (this == obj) {
       return true;
     }
-    if (!(obj instanceof ServerVersion other)) {
+    if (!(obj instanceof ServerVersion)) {
       return false;
     }
-    return compareTo(other) == 0;
+    return compareTo((ServerVersion) obj) == 0;
   }
 
   @Override

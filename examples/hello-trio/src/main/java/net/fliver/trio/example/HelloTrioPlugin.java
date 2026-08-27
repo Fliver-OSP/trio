@@ -1,19 +1,23 @@
 package net.fliver.trio.example;
 
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import net.fliver.trio.Trio;
 import net.fliver.trio.command.BrigadierCommands;
+import net.fliver.trio.command.CommandRegistrar;
 import net.fliver.trio.command.Commands;
 import net.fliver.trio.menu.Menus;
 import net.fliver.trio.storage.SqliteStore;
 import net.fliver.trio.storage.YamlStore;
 import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class HelloTrioPlugin extends JavaPlugin {
-  private static final long HELLO_COOLDOWN_MS = 3_000L;
+  private static final long HELLO_COOLDOWN_MS = 3000L;
 
   private Trio trio;
   private YamlStore players;
@@ -39,44 +43,94 @@ public final class HelloTrioPlugin extends JavaPlugin {
       getLogger().info("Vault detected.");
     }
 
+    final HelloTrioPlugin self = this;
+
     Commands.Tree treeFallback =
         Commands.tree()
             .permission("hellotrio.use")
-            .executes(this::hello)
+            .executes(
+                new BiConsumer<CommandSender, String[]>() {
+                  @Override
+                  public void accept(CommandSender sender, String[] args) {
+                    self.hello(sender, args);
+                  }
+                })
             .then(
                 "reload",
                 Commands.tree()
                     .permission("hellotrio.reload")
-                    .executes((sender, args) -> reload(sender)))
+                    .executes(
+                        new BiConsumer<CommandSender, String[]>() {
+                          @Override
+                          public void accept(CommandSender sender, String[] args) {
+                            self.reload(sender);
+                          }
+                        }))
             .then(
                 "http",
                 Commands.tree()
                     .permission("hellotrio.http")
-                    .executes((sender, args) -> http(sender)))
+                    .executes(
+                        new BiConsumer<CommandSender, String[]>() {
+                          @Override
+                          public void accept(CommandSender sender, String[] args) {
+                            self.http(sender);
+                          }
+                        }))
             .then(
                 "menu",
                 Commands.tree()
                     .permission("hellotrio.menu")
-                    .executes((sender, args) -> menu(sender)));
+                    .executes(
+                        new BiConsumer<CommandSender, String[]>() {
+                          @Override
+                          public void accept(CommandSender sender, String[] args) {
+                            self.menu(sender);
+                          }
+                        }));
 
     BrigadierCommands.Node brigadier =
         Commands.brigadier("hello")
             .permission("hellotrio.use")
-            .executes(ctx -> hello(ctx.sender(), ctx.args()))
+            .executes(
+                new Consumer<BrigadierCommands.BrigadierContext>() {
+                  @Override
+                  public void accept(BrigadierCommands.BrigadierContext ctx) {
+                    self.hello(ctx.sender(), ctx.args());
+                  }
+                })
             .then(
                 BrigadierCommands.literal("reload")
                     .permission("hellotrio.reload")
-                    .executes(ctx -> reload(ctx.sender())))
+                    .executes(
+                        new Consumer<BrigadierCommands.BrigadierContext>() {
+                          @Override
+                          public void accept(BrigadierCommands.BrigadierContext ctx) {
+                            self.reload(ctx.sender());
+                          }
+                        }))
             .then(
                 BrigadierCommands.literal("http")
                     .permission("hellotrio.http")
-                    .executes(ctx -> http(ctx.sender())))
+                    .executes(
+                        new Consumer<BrigadierCommands.BrigadierContext>() {
+                          @Override
+                          public void accept(BrigadierCommands.BrigadierContext ctx) {
+                            self.http(ctx.sender());
+                          }
+                        }))
             .then(
                 BrigadierCommands.literal("menu")
                     .permission("hellotrio.menu")
-                    .executes(ctx -> menu(ctx.sender())));
+                    .executes(
+                        new Consumer<BrigadierCommands.BrigadierContext>() {
+                          @Override
+                          public void accept(BrigadierCommands.BrigadierContext ctx) {
+                            self.menu(ctx.sender());
+                          }
+                        }));
 
-    net.fliver.trio.command.CommandRegistrar.registerOrBind(this, "hello", brigadier, treeFallback);
+    CommandRegistrar.registerOrBind(this, "hello", brigadier, treeFallback);
   }
 
   @Override
@@ -86,20 +140,26 @@ public final class HelloTrioPlugin extends JavaPlugin {
     }
   }
 
-  private void reload(org.bukkit.command.CommandSender sender) {
+  private void reload(CommandSender sender) {
     trio.configs().reload();
     trio.loadLang(trio.configs().string("language", "en_US"));
     trio.messages().send(sender, "reloaded");
   }
 
-  private void http(org.bukkit.command.CommandSender sender) {
+  private void http(final CommandSender sender) {
     trio.http()
         .get(
             "https://httpbin.org/get",
-            response ->
+            new Consumer<net.fliver.trio.http.Http.Response>() {
+              @Override
+              public void accept(net.fliver.trio.http.Http.Response response) {
                 trio.messages()
-                    .send(sender, "http-ok", "status", String.valueOf(response.status())),
-            error ->
+                    .send(sender, "http-ok", "status", String.valueOf(response.status()));
+              }
+            },
+            new Consumer<Throwable>() {
+              @Override
+              public void accept(Throwable error) {
                 trio.messages()
                     .send(
                         sender,
@@ -107,15 +167,17 @@ public final class HelloTrioPlugin extends JavaPlugin {
                         "error",
                         error.getMessage() == null
                             ? error.getClass().getSimpleName()
-                            : error.getMessage()));
+                            : error.getMessage());
+              }
+            });
   }
 
-  private void menu(org.bukkit.command.CommandSender sender) {
-    if (!(sender instanceof Player player)) {
+  private void menu(CommandSender sender) {
+    if (!(sender instanceof Player)) {
       trio.messages().send(sender, "players-only");
       return;
     }
-    openMenu(player);
+    openMenu((Player) sender);
   }
 
   private void openMenu(Player player) {
@@ -123,19 +185,30 @@ public final class HelloTrioPlugin extends JavaPlugin {
     menu.set(
         4,
         new ItemStack(Material.EMERALD),
-        click -> {
-          click.player().closeInventory();
-          trio.scheduler()
-              .later(() -> trio.messages().send(click.player(), "menu-clicked"), 10L);
+        new Consumer<Menus.MenuClick>() {
+          @Override
+          public void accept(final Menus.MenuClick click) {
+            click.player().closeInventory();
+            trio.scheduler()
+                .later(
+                    new Runnable() {
+                      @Override
+                      public void run() {
+                        trio.messages().send(click.player(), "menu-clicked");
+                      }
+                    },
+                    10L);
+          }
         });
     menu.open(player);
   }
 
-  private void hello(org.bukkit.command.CommandSender sender, String[] args) {
-    if (!(sender instanceof Player player)) {
+  private void hello(CommandSender sender, String[] args) {
+    if (!(sender instanceof Player)) {
       trio.messages().send(sender, "players-only");
       return;
     }
+    Player player = (Player) sender;
 
     if (!trio.permissions().has(player, "hellotrio.use")) {
       return;
@@ -156,7 +229,7 @@ public final class HelloTrioPlugin extends JavaPlugin {
     players.save(id);
 
     int greets = sqlite.queryInt("SELECT amount FROM greets WHERE uuid=?", 0, id) + 1;
-    sqlite.execute("INSERT OR REPLACE INTO greets(uuid, amount) VALUES(?, ?)", id, greets);
+    sqlite.execute("INSERT OR REPLACE INTO greets(uuid, amount) VALUES(?, ?)", id, Integer.valueOf(greets));
 
     trio.messages()
         .send(

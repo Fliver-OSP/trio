@@ -1,6 +1,8 @@
 package net.fliver.trio.command;
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +12,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import org.bukkit.command.CommandSender;
 
 public final class BrigadierCommands {
@@ -26,7 +29,7 @@ public final class BrigadierCommands {
   public static final class Node {
     private final String name;
     private final boolean argument;
-    private final Map<String, Node> children = new LinkedHashMap<>();
+    private final Map<String, Node> children = new LinkedHashMap<String, Node>();
     private String permission;
     private Consumer<BrigadierContext> action;
     private BiConsumer<CommandSender, String[]> treeAction;
@@ -80,30 +83,38 @@ public final class BrigadierCommands {
 
     private void apply(Object builder) throws ReflectiveOperationException {
       if (permission != null && !permission.isEmpty()) {
-        String perm = permission;
+        final String perm = permission;
         Predicate<Object> requires =
-            source -> {
-              CommandSender sender = unwrapSender(source);
-              return sender != null && sender.hasPermission(perm);
+            new Predicate<Object>() {
+              @Override
+              public boolean test(Object source) {
+                CommandSender sender = unwrapSender(source);
+                return sender != null && sender.hasPermission(perm);
+              }
             };
         BrigadierReflect.requires(builder, requires);
       }
       if (action != null || treeAction != null) {
+        final Consumer<BrigadierContext> act = action;
+        final BiConsumer<CommandSender, String[]> treeAct = treeAction;
         BrigadierReflect.executes(
             builder,
-            source -> {
-              CommandSender sender = unwrapSender(source);
-              if (sender == null) {
-                return 0;
+            new ToIntFunction<Object>() {
+              @Override
+              public int applyAsInt(Object source) {
+                CommandSender sender = unwrapSender(source);
+                if (sender == null) {
+                  return 0;
+                }
+                Object ctx = BrigadierReflect.currentContext();
+                if (act != null) {
+                  act.accept(new BrigadierContext(sender, ctx));
+                }
+                if (treeAct != null) {
+                  treeAct.accept(sender, remainingArgs(ctx));
+                }
+                return 1;
               }
-              Object ctx = BrigadierReflect.currentContext();
-              if (action != null) {
-                action.accept(new BrigadierContext(sender, ctx));
-              }
-              if (treeAction != null) {
-                treeAction.accept(sender, remainingArgs(ctx));
-              }
-              return 1;
             });
       }
       for (Node child : children.values()) {
@@ -126,10 +137,16 @@ public final class BrigadierCommands {
       if (treeAction != null) {
         tree.executes(treeAction);
       } else if (action != null) {
-        Consumer<BrigadierContext> act = action;
-        tree.executes((sender, args) -> act.accept(new BrigadierContext(sender, null, args)));
+        final Consumer<BrigadierContext> act = action;
+        tree.executes(
+            new BiConsumer<CommandSender, String[]>() {
+              @Override
+              public void accept(CommandSender sender, String[] args) {
+                act.accept(new BrigadierContext(sender, null, args));
+              }
+            });
       }
-      List<String> completes = new ArrayList<>();
+      List<String> completes = new ArrayList<String>();
       for (Node child : children.values()) {
         if (!child.argument) {
           completes.add(child.name);
@@ -137,22 +154,22 @@ public final class BrigadierCommands {
         }
       }
       if (!completes.isEmpty()) {
-        tree.completes(completes.toArray(String[]::new));
+        tree.completes(completes.toArray(new String[completes.size()]));
       }
       return tree;
     }
 
     private static CommandSender unwrapSender(Object source) {
-      if (source instanceof CommandSender sender) {
-        return sender;
+      if (source instanceof CommandSender) {
+        return (CommandSender) source;
       }
       if (source == null) {
         return null;
       }
       try {
         Object result = source.getClass().getMethod("getSender").invoke(source);
-        if (result instanceof CommandSender sender) {
-          return sender;
+        if (result instanceof CommandSender) {
+          return (CommandSender) result;
         }
       } catch (ReflectiveOperationException ignored) {
         // not a Paper CommandSourceStack
@@ -215,14 +232,16 @@ public final class BrigadierCommands {
         Method getArgument =
             context.getClass().getMethod("getArgument", String.class, Class.class);
         return (String) getArgument.invoke(context, name, String.class);
-      } catch (ReflectiveOperationException | IllegalArgumentException e) {
+      } catch (ReflectiveOperationException e) {
+        return null;
+      } catch (IllegalArgumentException e) {
         return null;
       }
     }
   }
 
   static final class BrigadierReflect {
-    private static final ThreadLocal<Object> CURRENT_CTX = new ThreadLocal<>();
+    private static final ThreadLocal<Object> CURRENT_CTX = new ThreadLocal<Object>();
 
     private BrigadierReflect() {}
 
@@ -241,7 +260,9 @@ public final class BrigadierCommands {
       Method greedy = stringType.getMethod("greedyString");
       Object argType = greedy.invoke(null);
       Class<?> required = Class.forName("com.mojang.brigadier.builder.RequiredArgumentBuilder");
-      Method argument = required.getMethod("argument", String.class, Class.forName("com.mojang.brigadier.arguments.ArgumentType"));
+      Method argument =
+          required.getMethod(
+              "argument", String.class, Class.forName("com.mojang.brigadier.arguments.ArgumentType"));
       return argument.invoke(null, name, argType);
     }
 
@@ -251,34 +272,38 @@ public final class BrigadierCommands {
       requires.invoke(builder, predicate);
     }
 
-    static void executes(Object builder, java.util.function.ToIntFunction<Object> command)
+    static void executes(Object builder, final ToIntFunction<Object> command)
         throws ReflectiveOperationException {
       Class<?> commandClass = Class.forName("com.mojang.brigadier.Command");
       Object proxy =
-          java.lang.reflect.Proxy.newProxyInstance(
+          Proxy.newProxyInstance(
               commandClass.getClassLoader(),
               new Class<?>[] {commandClass},
-              (proxyObj, method, args) -> {
-                if ("run".equals(method.getName()) && args != null && args.length == 1) {
-                  Object ctx = args[0];
-                  CURRENT_CTX.set(ctx);
-                  try {
-                    Object source = ctx.getClass().getMethod("getSource").invoke(ctx);
-                    return Integer.valueOf(command.applyAsInt(source));
-                  } finally {
-                    CURRENT_CTX.remove();
+              new InvocationHandler() {
+                @Override
+                public Object invoke(Object proxyObj, Method method, Object[] args)
+                    throws Throwable {
+                  if ("run".equals(method.getName()) && args != null && args.length == 1) {
+                    Object ctx = args[0];
+                    CURRENT_CTX.set(ctx);
+                    try {
+                      Object source = ctx.getClass().getMethod("getSource").invoke(ctx);
+                      return Integer.valueOf(command.applyAsInt(source));
+                    } finally {
+                      CURRENT_CTX.remove();
+                    }
                   }
+                  if ("equals".equals(method.getName())) {
+                    return Boolean.valueOf(proxyObj == args[0]);
+                  }
+                  if ("hashCode".equals(method.getName())) {
+                    return Integer.valueOf(System.identityHashCode(proxyObj));
+                  }
+                  if ("toString".equals(method.getName())) {
+                    return "TrioBrigadierCommand";
+                  }
+                  return null;
                 }
-                if ("equals".equals(method.getName())) {
-                  return Boolean.valueOf(proxyObj == args[0]);
-                }
-                if ("hashCode".equals(method.getName())) {
-                  return Integer.valueOf(System.identityHashCode(proxyObj));
-                }
-                if ("toString".equals(method.getName())) {
-                  return "TrioBrigadierCommand";
-                }
-                return null;
               });
       Method executes = builder.getClass().getMethod("executes", commandClass);
       executes.invoke(builder, proxy);
@@ -287,7 +312,7 @@ public final class BrigadierCommands {
     static void then(Object parent, Object child) throws ReflectiveOperationException {
       Method then = null;
       for (Method method : parent.getClass().getMethods()) {
-        if (!"then".equals(method.getName()) || method.getParameterCount() != 1) {
+        if (!"then".equals(method.getName()) || method.getParameterTypes().length != 1) {
           continue;
         }
         Class<?> param = method.getParameterTypes()[0];

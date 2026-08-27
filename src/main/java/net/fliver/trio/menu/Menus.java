@@ -1,12 +1,9 @@
 package net.fliver.trio.menu;
 
-import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.function.Consumer;
 import net.fliver.trio.lang.Lang;
 import net.fliver.trio.schedule.RegionScheduler;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -43,23 +40,14 @@ public final class Menus {
     if (rows < 1 || rows > 6) {
       throw new IllegalArgumentException("rows");
     }
-    return new Menu(plugin, title == null ? "" : title, null, rows * 9);
-  }
-
-  public Menu chest(Component title, int rows) {
-    ensureListening();
-    if (rows < 1 || rows > 6) {
-      throw new IllegalArgumentException("rows");
-    }
-    Component safe = title == null ? Component.empty() : title;
-    return new Menu(plugin, null, safe, rows * 9);
+    return new Menu(plugin, title == null ? "" : title, rows * 9);
   }
 
   public Menu chestMini(String langKey, int rows) {
     if (lang == null) {
       throw new IllegalStateException("Menus.lang(Lang) must be set before chestMini");
     }
-    return chest(lang.component(langKey), rows);
+    return chest(lang.colored(langKey), rows);
   }
 
   private void ensureListening() {
@@ -76,10 +64,10 @@ public final class Menus {
     private final Consumer<MenuClick>[] handlers;
 
     @SuppressWarnings("unchecked")
-    private Menu(JavaPlugin plugin, String stringTitle, Component componentTitle, int size) {
+    private Menu(JavaPlugin plugin, String title, int size) {
       this.plugin = plugin;
-      this.inventory = MenuFactory.create(this, size, stringTitle, componentTitle);
-      this.handlers = new Consumer[size];
+      this.inventory = Bukkit.createInventory(this, size, title);
+      this.handlers = (Consumer<MenuClick>[]) new Consumer[size];
     }
 
     public Menu set(int slot, ItemStack item) {
@@ -110,19 +98,29 @@ public final class Menus {
 
     void handleClick(InventoryClickEvent event) {
       event.setCancelled(true);
-      if (!(event.getWhoClicked() instanceof Player player)) {
+      if (!(event.getWhoClicked() instanceof Player)) {
         return;
       }
+      final Player player = (Player) event.getWhoClicked();
       int slot = event.getRawSlot();
       if (slot < 0 || slot >= handlers.length) {
         return;
       }
-      Consumer<MenuClick> handler = handlers[slot];
+      final Consumer<MenuClick> handler = handlers[slot];
       if (handler == null) {
         return;
       }
-      MenuClick click = new MenuClick(player, slot, event.getClick(), event, this);
-      RegionScheduler.runForEntity(plugin, player, () -> handler.accept(click), null);
+      final MenuClick click = new MenuClick(player, slot, event.getClick(), event, this);
+      RegionScheduler.runForEntity(
+          plugin,
+          player,
+          new Runnable() {
+            @Override
+            public void run() {
+              handler.accept(click);
+            }
+          },
+          null);
     }
   }
 
@@ -167,9 +165,10 @@ public final class Menus {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onClick(InventoryClickEvent event) {
       Inventory top = event.getView().getTopInventory();
-      if (!(top.getHolder() instanceof Menu menu)) {
+      if (!(top.getHolder() instanceof Menu)) {
         return;
       }
+      Menu menu = (Menu) top.getHolder();
       if (event.getClickedInventory() == null) {
         event.setCancelled(true);
         return;
@@ -186,46 +185,6 @@ public final class Menus {
       if (event.getInventory().getHolder() instanceof Menu) {
         event.setCancelled(true);
       }
-    }
-  }
-
-  static final class MenuFactory {
-    private static final Method COMPONENT_CREATE;
-    private static final boolean HAS_COMPONENT;
-
-    static {
-      Method method = null;
-      boolean has = false;
-      try {
-        method =
-            Bukkit.class.getMethod(
-                "createInventory", InventoryHolder.class, int.class, Component.class);
-        has = true;
-      } catch (NoSuchMethodException e) {
-        method = null;
-        has = false;
-      }
-      COMPONENT_CREATE = method;
-      HAS_COMPONENT = has;
-    }
-
-    private MenuFactory() {}
-
-    static Inventory create(
-        InventoryHolder holder, int size, String stringTitle, Component componentTitle) {
-      if (componentTitle != null && HAS_COMPONENT) {
-        try {
-          return (Inventory) COMPONENT_CREATE.invoke(null, holder, size, componentTitle);
-        } catch (ReflectiveOperationException e) {
-          String fallback = LegacyComponentSerializer.legacySection().serialize(componentTitle);
-          return Bukkit.createInventory(holder, size, fallback);
-        }
-      }
-      if (componentTitle != null) {
-        String fallback = LegacyComponentSerializer.legacySection().serialize(componentTitle);
-        return Bukkit.createInventory(holder, size, fallback);
-      }
-      return Bukkit.createInventory(holder, size, stringTitle == null ? "" : stringTitle);
     }
   }
 }

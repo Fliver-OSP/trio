@@ -18,18 +18,20 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
-      - name: Build and test
+      - name: Build and test (Java 8 bytecode)
         run: mvn -B clean verify
-
-  verify-latest:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "25"
-          cache: maven
-      - name: Verify against latest Paper API
-        run: mvn -B -Pverify-latest clean verify
+      - name: Confirm class file major version is 52 (Java 8)
+        run: |
+          jar tf target/trio-*.jar | head -n 5
+          class=$(jar tf target/trio-*.jar | grep 'net/fliver/trio/Trio.class' | head -n 1)
+          unzip -p target/trio-*.jar "$class" > /tmp/Trio.class
+          major=$(python3 - <<'PY'
+          import struct
+          with open("/tmp/Trio.class","rb") as f:
+              f.read(6)
+              major=struct.unpack(">H", f.read(2))[0]
+          print(major)
+          PY
+          )
+          echo "major=$major"
+          test "$major" = "52"
