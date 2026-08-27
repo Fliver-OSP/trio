@@ -50,34 +50,31 @@ below the recommended version for that Minecraft build.
 
 ### Install
 
-JitPack (needs a git tag):
+Add the Fliver Maven repo, then depend on **`net.fliver:trio`** (same coordinates
+everywhere — not JitPack’s `com.github…` group):
 
 ```xml
 <repository>
-  <id>jitpack.io</id>
-  <url>https://jitpack.io</url>
+  <id>fliver</id>
+  <url>https://fliver.net/maven</url>
 </repository>
 
 <dependency>
-  <groupId>com.github.Fliver-OSP</groupId>
+  <groupId>net.fliver</groupId>
   <artifactId>trio</artifactId>
-  <version>v0.5.0-beta</version>
+  <version>0.5.0-beta</version>
 </dependency>
 ```
 
 ```gradle
-repositories { maven { url "https://jitpack.io" } }
+repositories { maven { url = uri("https://fliver.net/maven") } }
 dependencies {
-  implementation("com.github.Fliver-OSP:trio:v0.5.0-beta")
+  implementation("net.fliver:trio:0.5.0-beta")
 }
 ```
 
-Or from this repo:
-
-```
-mvn clean install
-mvn -f examples/hello-trio/pom.xml package
-```
+Shade Trio (and its `sqlite-jdbc` transitive) into your plugin jar. Example:
+[`examples/hello-trio`](examples/hello-trio).
 
 ### Usage
 
