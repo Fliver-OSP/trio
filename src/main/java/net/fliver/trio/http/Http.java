@@ -20,7 +20,7 @@ import net.fliver.trio.schedule.RegionScheduler;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Http {
-  private static final String USER_AGENT = "Trio/0.5.0-beta";
+  private static final String USER_AGENT = "Trio/0.5.1-beta";
   private static final int DEFAULT_MAX_BYTES = 4 * 1024 * 1024;
 
   private static final ExecutorService WORKERS =

@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Fliver-OSP"><img src="https://img.shields.io/badge/made%20by-Fliver-111111?style=flat-square" alt="Made by Fliver-OSP" /></a>
-  <a href="https://github.com/Fliver-OSP/trio/releases"><img src="https://img.shields.io/badge/version-0.5.0--beta-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/Fliver-OSP/trio/releases"><img src="https://img.shields.io/badge/version-0.5.1--beta-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="License" /></a>
   <a href="https://papermc.io"><img src="https://img.shields.io/badge/Spigot%2FPaper%2FPurpur%2FFolia-1.8.8%E2%80%9326.2-brightgreen?style=flat-square" alt="Servers" /></a>
 </p>
@@ -22,7 +22,7 @@ and permissions. It does not talk to Fliver or any cloud service — shade it (a
 `sqlite-jdbc`) into your jar like any other library.
 
 - Example: [`examples/hello-trio`](examples/hello-trio)
-- Coordinates: `net.fliver:trio:0.5.0-beta` (compiled as **Java 8** bytecode)
+- Coordinates: `net.fliver:trio:0.5.1-beta` (compiled as **Java 8** bytecode)
 
 ### Support matrix
 
@@ -62,14 +62,14 @@ everywhere — not JitPack’s `com.github…` group):
 <dependency>
   <groupId>net.fliver</groupId>
   <artifactId>trio</artifactId>
-  <version>0.5.0-beta</version>
+  <version>0.5.1-beta</version>
 </dependency>
 ```
 
 ```gradle
 repositories { maven { url = uri("https://fliver.net/maven") } }
 dependencies {
-  implementation("net.fliver:trio:0.5.0-beta")
+  implementation("net.fliver:trio:0.5.1-beta")
 }
 ```
 
