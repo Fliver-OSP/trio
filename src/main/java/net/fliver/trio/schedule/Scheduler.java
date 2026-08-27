@@ -1,6 +1,5 @@
 package net.fliver.trio.schedule;
 
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -15,36 +14,42 @@ public final class Scheduler {
     return new Scheduler(plugin);
   }
 
-  public BukkitTask sync(Runnable task) {
-    return Bukkit.getScheduler().runTask(plugin, task);
+  public Object sync(Runnable task) {
+    return RegionScheduler.runSync(plugin, task);
   }
 
-  public BukkitTask async(Runnable task) {
-    return Bukkit.getScheduler().runTaskAsynchronously(plugin, task);
+  public Object async(Runnable task) {
+    return RegionScheduler.runAsync(plugin, task);
   }
 
-  public BukkitTask later(Runnable task, long delayTicks) {
-    return Bukkit.getScheduler().runTaskLater(plugin, task, Math.max(0L, delayTicks));
+  public Object later(Runnable task, long delayTicks) {
+    return RegionScheduler.runLater(plugin, task, delayTicks);
   }
 
-  public BukkitTask laterAsync(Runnable task, long delayTicks) {
-    return Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, Math.max(0L, delayTicks));
+  public Object laterAsync(Runnable task, long delayTicks) {
+    return RegionScheduler.runLaterAsync(plugin, task, delayTicks);
   }
 
-  public BukkitTask timer(Runnable task, long delayTicks, long periodTicks) {
-    return Bukkit.getScheduler()
-        .runTaskTimer(plugin, task, Math.max(0L, delayTicks), Math.max(1L, periodTicks));
+  public Object timer(Runnable task, long delayTicks, long periodTicks) {
+    return RegionScheduler.runTimer(plugin, task, delayTicks, periodTicks);
   }
 
-  public BukkitTask timerAsync(Runnable task, long delayTicks, long periodTicks) {
-    return Bukkit.getScheduler()
-        .runTaskTimerAsynchronously(
-            plugin, task, Math.max(0L, delayTicks), Math.max(1L, periodTicks));
+  public Object timerAsync(Runnable task, long delayTicks, long periodTicks) {
+    return RegionScheduler.runTimerAsync(plugin, task, delayTicks, periodTicks);
   }
 
+  public void runForEntity(
+      org.bukkit.entity.Entity entity, Runnable task, Runnable retired) {
+    RegionScheduler.runForEntity(plugin, entity, task, retired);
+  }
+
+  public void cancel(Object task) {
+    RegionScheduler.cancel(task);
+  }
+
+  /** @deprecated Prefer {@link #cancel(Object)}; kept for callers that hold BukkitTask. */
+  @Deprecated
   public void cancel(BukkitTask task) {
-    if (task != null) {
-      task.cancel();
-    }
+    RegionScheduler.cancel(task);
   }
 }

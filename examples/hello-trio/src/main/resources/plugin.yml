@@ -1,9 +1,9 @@
 name: HelloTrio
 version: ${project.version}
 main: net.fliver.trio.example.HelloTrioPlugin
-api-version: '1.20'
 description: Minimal Paper plugin that demonstrates Trio.
 authors: [Fliver]
+folia-supported: true
 commands:
   hello:
     description: Say hello via Trio.

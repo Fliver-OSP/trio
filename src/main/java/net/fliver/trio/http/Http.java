@@ -11,11 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-import org.bukkit.Bukkit;
+import net.fliver.trio.schedule.RegionScheduler;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Http {
-  private static final String USER_AGENT = "Trio/0.3.0-beta";
+  private static final String USER_AGENT = "Trio/0.4.0-beta";
 
   private final JavaPlugin plugin;
   private final HttpClient client;
@@ -76,11 +76,7 @@ public final class Http {
   }
 
   private void runMain(Runnable task) {
-    if (Bukkit.isPrimaryThread()) {
-      task.run();
-    } else {
-      Bukkit.getScheduler().runTask(plugin, task);
-    }
+    RegionScheduler.runSync(plugin, task);
   }
 
   public static final class Request {

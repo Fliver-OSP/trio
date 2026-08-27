@@ -21,6 +21,10 @@ public final class Commands {
     return new Tree();
   }
 
+  public static BrigadierCommands.Node brigadier(String literal) {
+    return BrigadierCommands.literal(literal);
+  }
+
   public static void bind(JavaPlugin plugin, String name, Tree tree) {
     PluginCommand command = plugin.getCommand(name);
     if (command == null) {
@@ -28,6 +32,10 @@ public final class Commands {
     }
     command.setExecutor(tree);
     command.setTabCompleter(tree);
+  }
+
+  public static boolean register(JavaPlugin plugin, String pluginYmlName, BrigadierCommands.Node root) {
+    return CommandRegistrar.register(plugin, pluginYmlName, root);
   }
 
   public static final class Tree implements CommandExecutor, TabCompleter {

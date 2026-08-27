@@ -1,6 +1,8 @@
 package net.fliver.trio;
 
 import java.util.concurrent.ConcurrentHashMap;
+import net.fliver.trio.command.BrigadierCommands;
+import net.fliver.trio.command.CommandRegistrar;
 import net.fliver.trio.command.Commands;
 import net.fliver.trio.config.Configs;
 import net.fliver.trio.cooldown.Cooldowns;
@@ -10,6 +12,7 @@ import net.fliver.trio.lang.Lang;
 import net.fliver.trio.menu.Menus;
 import net.fliver.trio.message.Messages;
 import net.fliver.trio.perm.Permissions;
+import net.fliver.trio.platform.Platform;
 import net.fliver.trio.schedule.Scheduler;
 import net.fliver.trio.storage.SqliteStore;
 import net.fliver.trio.storage.YamlStore;
@@ -17,6 +20,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Trio {
   private final JavaPlugin plugin;
+  private final Platform platform;
   private final Configs configs;
   private final Cooldowns cooldowns;
   private final Http http;
@@ -31,6 +35,7 @@ public final class Trio {
 
   private Trio(JavaPlugin plugin) {
     this.plugin = plugin;
+    this.platform = Platform.detect();
     this.configs = Configs.of(plugin);
     this.cooldowns = new Cooldowns();
     this.http = Http.of(plugin);
@@ -38,6 +43,7 @@ public final class Trio {
     this.scheduler = Scheduler.of(plugin);
     this.menus = Menus.of(plugin);
     this.permissions = new Permissions();
+    this.platform.logEnvironment(plugin);
   }
 
   public static Trio create(JavaPlugin plugin) {
@@ -49,6 +55,10 @@ public final class Trio {
 
   public JavaPlugin plugin() {
     return plugin;
+  }
+
+  public Platform platform() {
+    return platform;
   }
 
   public Configs configs() {
@@ -98,6 +108,7 @@ public final class Trio {
   public Trio lang(Lang lang) {
     this.lang = lang;
     this.messages = lang == null ? null : Messages.of(lang);
+    this.menus.lang(lang);
     return this;
   }
 
@@ -107,5 +118,9 @@ public final class Trio {
 
   public void bindCommand(String name, Commands.Tree tree) {
     Commands.bind(plugin, name, tree);
+  }
+
+  public boolean registerCommand(String pluginYmlName, BrigadierCommands.Node root) {
+    return CommandRegistrar.register(plugin, pluginYmlName, root);
   }
 }

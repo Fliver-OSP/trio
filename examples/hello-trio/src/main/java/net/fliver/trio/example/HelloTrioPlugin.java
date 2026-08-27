@@ -1,6 +1,7 @@
 package net.fliver.trio.example;
 
 import net.fliver.trio.Trio;
+import net.fliver.trio.command.BrigadierCommands;
 import net.fliver.trio.command.Commands;
 import net.fliver.trio.menu.Menus;
 import net.fliver.trio.storage.SqliteStore;
@@ -38,7 +39,7 @@ public final class HelloTrioPlugin extends JavaPlugin {
       getLogger().info("Vault detected.");
     }
 
-    Commands.Tree root =
+    Commands.Tree treeFallback =
         Commands.tree()
             .permission("hellotrio.use")
             .executes(this::hello)
@@ -46,51 +47,36 @@ public final class HelloTrioPlugin extends JavaPlugin {
                 "reload",
                 Commands.tree()
                     .permission("hellotrio.reload")
-                    .executes(
-                        (sender, args) -> {
-                          trio.configs().reload();
-                          trio.loadLang(trio.configs().string("language", "en_US"));
-                          trio.messages().send(sender, "reloaded");
-                        }))
+                    .executes((sender, args) -> reload(sender)))
             .then(
                 "http",
                 Commands.tree()
                     .permission("hellotrio.http")
-                    .executes(
-                        (sender, args) ->
-                            trio.http()
-                                .get(
-                                    "https://httpbin.org/get",
-                                    response ->
-                                        trio.messages()
-                                            .send(
-                                                sender,
-                                                "http-ok",
-                                                "status",
-                                                String.valueOf(response.status())),
-                                    error ->
-                                        trio.messages()
-                                            .send(
-                                                sender,
-                                                "http-fail",
-                                                "error",
-                                                error.getMessage() == null
-                                                    ? error.getClass().getSimpleName()
-                                                    : error.getMessage()))))
+                    .executes((sender, args) -> http(sender)))
             .then(
                 "menu",
                 Commands.tree()
                     .permission("hellotrio.menu")
-                    .executes(
-                        (sender, args) -> {
-                          if (!(sender instanceof Player player)) {
-                            trio.messages().send(sender, "players-only");
-                            return;
-                          }
-                          openMenu(player);
-                        }));
+                    .executes((sender, args) -> menu(sender)));
 
-    trio.bindCommand("hello", root);
+    BrigadierCommands.Node brigadier =
+        Commands.brigadier("hello")
+            .permission("hellotrio.use")
+            .executes(ctx -> hello(ctx.sender(), ctx.args()))
+            .then(
+                BrigadierCommands.literal("reload")
+                    .permission("hellotrio.reload")
+                    .executes(ctx -> reload(ctx.sender())))
+            .then(
+                BrigadierCommands.literal("http")
+                    .permission("hellotrio.http")
+                    .executes(ctx -> http(ctx.sender())))
+            .then(
+                BrigadierCommands.literal("menu")
+                    .permission("hellotrio.menu")
+                    .executes(ctx -> menu(ctx.sender())));
+
+    net.fliver.trio.command.CommandRegistrar.registerOrBind(this, "hello", brigadier, treeFallback);
   }
 
   @Override
@@ -100,17 +86,47 @@ public final class HelloTrioPlugin extends JavaPlugin {
     }
   }
 
+  private void reload(org.bukkit.command.CommandSender sender) {
+    trio.configs().reload();
+    trio.loadLang(trio.configs().string("language", "en_US"));
+    trio.messages().send(sender, "reloaded");
+  }
+
+  private void http(org.bukkit.command.CommandSender sender) {
+    trio.http()
+        .get(
+            "https://httpbin.org/get",
+            response ->
+                trio.messages()
+                    .send(sender, "http-ok", "status", String.valueOf(response.status())),
+            error ->
+                trio.messages()
+                    .send(
+                        sender,
+                        "http-fail",
+                        "error",
+                        error.getMessage() == null
+                            ? error.getClass().getSimpleName()
+                            : error.getMessage()));
+  }
+
+  private void menu(org.bukkit.command.CommandSender sender) {
+    if (!(sender instanceof Player player)) {
+      trio.messages().send(sender, "players-only");
+      return;
+    }
+    openMenu(player);
+  }
+
   private void openMenu(Player player) {
-    Menus.Menu menu = trio.menus().chest("Hello Trio", 1);
+    Menus.Menu menu = trio.menus().chestMini("menu-title", 1);
     menu.set(
         4,
         new ItemStack(Material.EMERALD),
         click -> {
           click.player().closeInventory();
           trio.scheduler()
-              .later(
-                  () -> trio.messages().send(click.player(), "menu-clicked"),
-                  10L);
+              .later(() -> trio.messages().send(click.player(), "menu-clicked"), 10L);
         });
     menu.open(player);
   }

@@ -1,7 +1,12 @@
 package net.fliver.trio.menu;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.function.Consumer;
+import net.fliver.trio.lang.Lang;
+import net.fliver.trio.schedule.RegionScheduler;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,6 +22,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Menus {
   private final JavaPlugin plugin;
+  private Lang lang;
   private boolean listening;
 
   private Menus(JavaPlugin plugin) {
@@ -27,12 +33,33 @@ public final class Menus {
     return new Menus(plugin);
   }
 
+  public Menus lang(Lang lang) {
+    this.lang = lang;
+    return this;
+  }
+
   public Menu chest(String title, int rows) {
     ensureListening();
     if (rows < 1 || rows > 6) {
       throw new IllegalArgumentException("rows");
     }
-    return new Menu(plugin, title == null ? "" : title, rows * 9);
+    return new Menu(plugin, title == null ? "" : title, null, rows * 9);
+  }
+
+  public Menu chest(Component title, int rows) {
+    ensureListening();
+    if (rows < 1 || rows > 6) {
+      throw new IllegalArgumentException("rows");
+    }
+    Component safe = title == null ? Component.empty() : title;
+    return new Menu(plugin, null, safe, rows * 9);
+  }
+
+  public Menu chestMini(String langKey, int rows) {
+    if (lang == null) {
+      throw new IllegalStateException("Menus.lang(Lang) must be set before chestMini");
+    }
+    return chest(lang.component(langKey), rows);
   }
 
   private void ensureListening() {
@@ -44,12 +71,14 @@ public final class Menus {
   }
 
   public static final class Menu implements InventoryHolder {
+    private final JavaPlugin plugin;
     private final Inventory inventory;
     private final Consumer<MenuClick>[] handlers;
 
     @SuppressWarnings("unchecked")
-    private Menu(JavaPlugin plugin, String title, int size) {
-      this.inventory = Bukkit.createInventory(this, size, title);
+    private Menu(JavaPlugin plugin, String stringTitle, Component componentTitle, int size) {
+      this.plugin = plugin;
+      this.inventory = MenuFactory.create(this, size, stringTitle, componentTitle);
       this.handlers = new Consumer[size];
     }
 
@@ -92,7 +121,8 @@ public final class Menus {
       if (handler == null) {
         return;
       }
-      handler.accept(new MenuClick(player, slot, event.getClick(), event, this));
+      MenuClick click = new MenuClick(player, slot, event.getClick(), event, this);
+      RegionScheduler.runForEntity(plugin, player, () -> handler.accept(click), null);
     }
   }
 
@@ -156,6 +186,46 @@ public final class Menus {
       if (event.getInventory().getHolder() instanceof Menu) {
         event.setCancelled(true);
       }
+    }
+  }
+
+  static final class MenuFactory {
+    private static final Method COMPONENT_CREATE;
+    private static final boolean HAS_COMPONENT;
+
+    static {
+      Method method = null;
+      boolean has = false;
+      try {
+        method =
+            Bukkit.class.getMethod(
+                "createInventory", InventoryHolder.class, int.class, Component.class);
+        has = true;
+      } catch (NoSuchMethodException e) {
+        method = null;
+        has = false;
+      }
+      COMPONENT_CREATE = method;
+      HAS_COMPONENT = has;
+    }
+
+    private MenuFactory() {}
+
+    static Inventory create(
+        InventoryHolder holder, int size, String stringTitle, Component componentTitle) {
+      if (componentTitle != null && HAS_COMPONENT) {
+        try {
+          return (Inventory) COMPONENT_CREATE.invoke(null, holder, size, componentTitle);
+        } catch (ReflectiveOperationException e) {
+          String fallback = LegacyComponentSerializer.legacySection().serialize(componentTitle);
+          return Bukkit.createInventory(holder, size, fallback);
+        }
+      }
+      if (componentTitle != null) {
+        String fallback = LegacyComponentSerializer.legacySection().serialize(componentTitle);
+        return Bukkit.createInventory(holder, size, fallback);
+      }
+      return Bukkit.createInventory(holder, size, stringTitle == null ? "" : stringTitle);
     }
   }
 }
