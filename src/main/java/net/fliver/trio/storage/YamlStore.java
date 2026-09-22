@@ -97,6 +97,47 @@ public final class YamlStore {
     cache.clear();
   }
 
+  public void saveAll() {
+    for (String id : cache.keySet()) {
+      try {
+        save(id);
+      } catch (Throwable ignored) {
+      }
+    }
+  }
+
+  public boolean delete(String id) {
+    String safe = requireId(id);
+    cache.remove(safe);
+    java.io.File target = file(safe);
+    if (target.isFile()) {
+      return target.delete();
+    }
+    return false;
+  }
+
+  public java.util.List<String> ids() {
+    java.util.List<String> out = new java.util.ArrayList<String>();
+    if (folder.isDirectory()) {
+      java.io.File[] files = folder.listFiles();
+      if (files != null) {
+        for (java.io.File file : files) {
+          String name = file.getName();
+          if (name.endsWith(".yml")) {
+            out.add(name.substring(0, name.length() - 4));
+          }
+        }
+      }
+    }
+    for (String cached : cache.keySet()) {
+      if (!out.contains(cached)) {
+        out.add(cached);
+      }
+    }
+    java.util.Collections.sort(out);
+    return out;
+  }
+
   private FileConfiguration load(String safe) {
     return cache.computeIfAbsent(
         safe,

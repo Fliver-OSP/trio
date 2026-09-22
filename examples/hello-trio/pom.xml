@@ -6,7 +6,7 @@
 
   <groupId>net.fliver</groupId>
   <artifactId>hello-trio</artifactId>
-  <version>0.5.1-beta</version>
+  <version>0.6.0-beta</version>
   <packaging>jar</packaging>
 
   <name>Hello Trio</name>
@@ -45,7 +45,7 @@
     <dependency>
       <groupId>net.fliver</groupId>
       <artifactId>trio</artifactId>
-      <version>0.5.1-beta</version>
+      <version>0.6.0-beta</version>
     </dependency>
   </dependencies>
 

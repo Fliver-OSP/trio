@@ -7,7 +7,7 @@ folia-supported: true
 commands:
   hello:
     description: Say hello via Trio.
-    usage: /hello [reload|http|menu]
+    usage: /hello [reload|http|menu|json|title]
     permission: hellotrio.use
 permissions:
   hellotrio.use:

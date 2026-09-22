@@ -62,6 +62,7 @@ public final class Menus {
     private final JavaPlugin plugin;
     private final Inventory inventory;
     private final Consumer<MenuClick>[] handlers;
+    private Consumer<Player> closeHandler;
 
     @SuppressWarnings("unchecked")
     private Menu(JavaPlugin plugin, String title, int size) {
@@ -83,8 +84,52 @@ public final class Menus {
       return this;
     }
 
+    public Menu fillBorder(ItemStack item) {
+      int size = inventory.getSize();
+      int rows = size / 9;
+      if (rows < 2) {
+        return this;
+      }
+      for (int col = 0; col < 9; col++) {
+        setIfEmpty(col, item);
+        setIfEmpty(size - 9 + col, item);
+      }
+      for (int row = 1; row < rows - 1; row++) {
+        setIfEmpty(row * 9, item);
+        setIfEmpty(row * 9 + 8, item);
+      }
+      return this;
+    }
+
+    public Menu clear() {
+      inventory.clear();
+      for (int i = 0; i < handlers.length; i++) {
+        handlers[i] = null;
+      }
+      return this;
+    }
+
+    public Menu onClose(Consumer<Player> handler) {
+      this.closeHandler = handler;
+      return this;
+    }
+
     public void open(Player player) {
       Objects.requireNonNull(player, "player").openInventory(inventory);
+    }
+
+    public void close(Player player) {
+      if (player != null) {
+        player.closeInventory();
+      }
+    }
+
+    public void refresh() {
+      for (org.bukkit.entity.HumanEntity viewer : inventory.getViewers()) {
+        if (viewer instanceof Player) {
+          ((Player) viewer).updateInventory();
+        }
+      }
     }
 
     public Inventory inventory() {
@@ -94,6 +139,29 @@ public final class Menus {
     @Override
     public Inventory getInventory() {
       return inventory;
+    }
+
+    private void setIfEmpty(int slot, ItemStack item) {
+      if (inventory.getItem(slot) == null) {
+        inventory.setItem(slot, item);
+      }
+    }
+
+    void handleClose(Player player) {
+      if (closeHandler != null && player != null) {
+        final Player target = player;
+        final Consumer<Player> handler = closeHandler;
+        RegionScheduler.runForEntity(
+            plugin,
+            target,
+            new Runnable() {
+              @Override
+              public void run() {
+                handler.accept(target);
+              }
+            },
+            null);
+      }
     }
 
     void handleClick(InventoryClickEvent event) {
@@ -162,6 +230,17 @@ public final class Menus {
   }
 
   private static final class MenuListener implements Listener {
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void onClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+      if (!(event.getInventory().getHolder() instanceof Menu)) {
+        return;
+      }
+      if (!(event.getPlayer() instanceof Player)) {
+        return;
+      }
+      ((Menu) event.getInventory().getHolder()).handleClose((Player) event.getPlayer());
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onClick(InventoryClickEvent event) {
       Inventory top = event.getView().getTopInventory();

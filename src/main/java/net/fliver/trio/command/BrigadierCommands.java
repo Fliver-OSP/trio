@@ -31,6 +31,9 @@ public final class BrigadierCommands {
     private final boolean argument;
     private final Map<String, Node> children = new LinkedHashMap<String, Node>();
     private String permission;
+    private String usage;
+    private boolean playerOnly;
+    private boolean consoleOnly;
     private Consumer<BrigadierContext> action;
     private BiConsumer<CommandSender, String[]> treeAction;
 
@@ -41,6 +44,23 @@ public final class BrigadierCommands {
 
     public Node permission(String permission) {
       this.permission = permission;
+      return this;
+    }
+
+    public Node usage(String usage) {
+      this.usage = usage;
+      return this;
+    }
+
+    public Node playerOnly() {
+      this.playerOnly = true;
+      this.consoleOnly = false;
+      return this;
+    }
+
+    public Node consoleOnly() {
+      this.consoleOnly = true;
+      this.playerOnly = false;
       return this;
     }
 
@@ -133,6 +153,15 @@ public final class BrigadierCommands {
       Commands.Tree tree = Commands.tree();
       if (permission != null) {
         tree.permission(permission);
+      }
+      if (usage != null) {
+        tree.usage(usage);
+      }
+      if (playerOnly) {
+        tree.playerOnly();
+      }
+      if (consoleOnly) {
+        tree.consoleOnly();
       }
       if (treeAction != null) {
         tree.executes(treeAction);

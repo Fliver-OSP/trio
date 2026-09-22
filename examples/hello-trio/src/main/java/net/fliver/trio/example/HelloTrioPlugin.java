@@ -1,14 +1,18 @@
 package net.fliver.trio.example;
 
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.fliver.trio.Trio;
 import net.fliver.trio.command.BrigadierCommands;
 import net.fliver.trio.command.CommandRegistrar;
 import net.fliver.trio.command.Commands;
+import net.fliver.trio.item.ItemBuilder;
+import net.fliver.trio.json.Json;
 import net.fliver.trio.menu.Menus;
 import net.fliver.trio.storage.SqliteStore;
 import net.fliver.trio.storage.YamlStore;
+import net.fliver.trio.update.Updates;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -39,15 +43,19 @@ public final class HelloTrioPlugin extends JavaPlugin {
     trio.permissions().register("hellotrio.http", PermissionDefault.OP, "hellotrio.admin");
     trio.permissions().register("hellotrio.menu", PermissionDefault.TRUE, "hellotrio.admin");
 
-    if (trio.softDepends().present("Vault")) {
-      getLogger().info("Vault detected.");
-    }
+    trio.softDepends().onEnable(this, "Vault", new Consumer<org.bukkit.plugin.Plugin>() {
+      @Override
+      public void accept(org.bukkit.plugin.Plugin found) {
+        getLogger().info("Vault is around, hooks can go here.");
+      }
+    });
 
     final HelloTrioPlugin self = this;
 
     Commands.Tree treeFallback =
         Commands.tree()
             .permission("hellotrio.use")
+            .usage("&eUsage: /hello [reload|http|menu|json|title]")
             .executes(
                 new BiConsumer<CommandSender, String[]>() {
                   @Override
@@ -59,6 +67,7 @@ public final class HelloTrioPlugin extends JavaPlugin {
                 "reload",
                 Commands.tree()
                     .permission("hellotrio.reload")
+                    .usage("&eUsage: /hello reload")
                     .executes(
                         new BiConsumer<CommandSender, String[]>() {
                           @Override
@@ -70,6 +79,7 @@ public final class HelloTrioPlugin extends JavaPlugin {
                 "http",
                 Commands.tree()
                     .permission("hellotrio.http")
+                    .usage("&eUsage: /hello http")
                     .executes(
                         new BiConsumer<CommandSender, String[]>() {
                           @Override
@@ -81,17 +91,45 @@ public final class HelloTrioPlugin extends JavaPlugin {
                 "menu",
                 Commands.tree()
                     .permission("hellotrio.menu")
+                    .usage("&eUsage: /hello menu")
+                    .playerOnly()
                     .executes(
                         new BiConsumer<CommandSender, String[]>() {
                           @Override
                           public void accept(CommandSender sender, String[] args) {
                             self.menu(sender);
                           }
+                        }))
+            .then(
+                "json",
+                Commands.tree()
+                    .permission("hellotrio.use")
+                    .usage("&eUsage: /hello json")
+                    .executes(
+                        new BiConsumer<CommandSender, String[]>() {
+                          @Override
+                          public void accept(CommandSender sender, String[] args) {
+                            self.json(sender);
+                          }
+                        }))
+            .then(
+                "title",
+                Commands.tree()
+                    .permission("hellotrio.use")
+                    .usage("&eUsage: /hello title")
+                    .playerOnly()
+                    .executes(
+                        new BiConsumer<CommandSender, String[]>() {
+                          @Override
+                          public void accept(CommandSender sender, String[] args) {
+                            self.title(sender);
+                          }
                         }));
 
     BrigadierCommands.Node brigadier =
         Commands.brigadier("hello")
             .permission("hellotrio.use")
+            .usage("&eUsage: /hello [reload|http|menu|json|title]")
             .executes(
                 new Consumer<BrigadierCommands.BrigadierContext>() {
                   @Override
@@ -122,11 +160,31 @@ public final class HelloTrioPlugin extends JavaPlugin {
             .then(
                 BrigadierCommands.literal("menu")
                     .permission("hellotrio.menu")
+                    .playerOnly()
                     .executes(
                         new Consumer<BrigadierCommands.BrigadierContext>() {
                           @Override
                           public void accept(BrigadierCommands.BrigadierContext ctx) {
                             self.menu(ctx.sender());
+                          }
+                        }))
+            .then(
+                BrigadierCommands.literal("json")
+                    .executes(
+                        new Consumer<BrigadierCommands.BrigadierContext>() {
+                          @Override
+                          public void accept(BrigadierCommands.BrigadierContext ctx) {
+                            self.json(ctx.sender());
+                          }
+                        }))
+            .then(
+                BrigadierCommands.literal("title")
+                    .playerOnly()
+                    .executes(
+                        new Consumer<BrigadierCommands.BrigadierContext>() {
+                          @Override
+                          public void accept(BrigadierCommands.BrigadierContext ctx) {
+                            self.title(ctx.sender());
                           }
                         }));
 
@@ -135,7 +193,9 @@ public final class HelloTrioPlugin extends JavaPlugin {
 
   @Override
   public void onDisable() {
-    if (sqlite != null) {
+    if (trio != null) {
+      trio.close();
+    } else if (sqlite != null) {
       sqlite.close();
     }
   }
@@ -172,19 +232,32 @@ public final class HelloTrioPlugin extends JavaPlugin {
             });
   }
 
+  private void json(CommandSender sender) {
+    Map<String, Object> parsed =
+        Json.asObject(Json.parse("{\"hello\":\"world\",\"count\":2}"));
+    String name = Json.asString(parsed.get("hello"), "nothing");
+    trio.messages().send(sender, "json-ok", "value", name);
+  }
+
+  private void title(CommandSender sender) {
+    Player player = (Player) sender;
+    trio.messages().title(player, "title-main", "title-sub");
+  }
+
   private void menu(CommandSender sender) {
-    if (!(sender instanceof Player)) {
-      trio.messages().send(sender, "players-only");
-      return;
-    }
     openMenu((Player) sender);
   }
 
   private void openMenu(Player player) {
-    Menus.Menu menu = trio.menus().chestMini("menu-title", 1);
+    ItemStack frame =
+        ItemBuilder.of(Material.GLASS, 1).name("&8").build();
+    ItemStack hello =
+        ItemBuilder.of(Material.EMERALD).name("&aSay hi").lore("&7Click to get a hello").build();
+    Menus.Menu menu = trio.menus().chestMini("menu-title", 3);
+    menu.fillBorder(frame);
     menu.set(
-        4,
-        new ItemStack(Material.EMERALD),
+        13,
+        hello,
         new Consumer<Menus.MenuClick>() {
           @Override
           public void accept(final Menus.MenuClick click) {
@@ -200,6 +273,12 @@ public final class HelloTrioPlugin extends JavaPlugin {
                     10L);
           }
         });
+    menu.onClose(new Consumer<Player>() {
+      @Override
+      public void accept(Player left) {
+        getLogger().info(left.getName() + " closed the demo menu.");
+      }
+    });
     menu.open(player);
   }
 
@@ -211,15 +290,13 @@ public final class HelloTrioPlugin extends JavaPlugin {
     Player player = (Player) sender;
 
     if (!trio.permissions().has(player, "hellotrio.use")) {
+      trio.messages().send(sender, "no-permission");
       return;
     }
 
     if (!trio.cooldowns().ready("hello", player.getUniqueId(), HELLO_COOLDOWN_MS)) {
-      long seconds =
-          Math.max(
-              1L,
-              (trio.cooldowns().remainingMs("hello", player.getUniqueId()) + 999L) / 1000L);
-      trio.messages().send(sender, "cooldown", "seconds", String.valueOf(seconds));
+      long seconds = trio.cooldowns().remainingSec("hello", player.getUniqueId());
+      trio.messages().send(sender, "cooldown", "seconds", String.valueOf(Math.max(1L, seconds)));
       return;
     }
 
@@ -241,5 +318,23 @@ public final class HelloTrioPlugin extends JavaPlugin {
             String.valueOf(uses),
             "greets",
             String.valueOf(greets));
+  }
+
+  @SuppressWarnings("unused")
+  private void updateHint(CommandSender sender, String feedUrl) {
+    trio.checkUpdates(
+        feedUrl,
+        new Consumer<Updates.Release>() {
+          @Override
+          public void accept(Updates.Release release) {
+            getLogger().info("New build out: " + release.version);
+          }
+        },
+        new Consumer<Throwable>() {
+          @Override
+          public void accept(Throwable error) {
+            getLogger().warning("Update check stumbled: " + error.getMessage());
+          }
+        });
   }
 }

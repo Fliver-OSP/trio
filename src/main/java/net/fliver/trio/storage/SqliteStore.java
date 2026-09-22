@@ -6,6 +6,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -38,22 +40,26 @@ public final class SqliteStore {
     return name;
   }
 
-  public Connection connection() {
+  public synchronized Connection connection() {
     ensureOpen();
     return connection;
   }
 
-  public void execute(String sql, Object... params) {
+  public synchronized void execute(String sql, Object... params) {
+    update(sql, params);
+  }
+
+  public synchronized int update(String sql, Object... params) {
     ensureOpen();
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       bind(statement, params);
-      statement.executeUpdate();
+      return statement.executeUpdate();
     } catch (SQLException e) {
       throw new IllegalStateException("sqlite execute failed: " + e.getMessage(), e);
     }
   }
 
-  public int queryInt(String sql, int def, Object... params) {
+  public synchronized int queryInt(String sql, int def, Object... params) {
     ensureOpen();
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       bind(statement, params);
@@ -68,7 +74,22 @@ public final class SqliteStore {
     }
   }
 
-  public String queryString(String sql, String def, Object... params) {
+  public synchronized long queryLong(String sql, long def, Object... params) {
+    ensureOpen();
+    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+      bind(statement, params);
+      try (ResultSet rs = statement.executeQuery()) {
+        if (rs.next()) {
+          return rs.getLong(1);
+        }
+        return def;
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException("sqlite queryLong failed: " + e.getMessage(), e);
+    }
+  }
+
+  public synchronized String queryString(String sql, String def, Object... params) {
     ensureOpen();
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       bind(statement, params);
@@ -84,7 +105,7 @@ public final class SqliteStore {
     }
   }
 
-  public boolean queryBool(String sql, boolean def, Object... params) {
+  public synchronized boolean queryBool(String sql, boolean def, Object... params) {
     ensureOpen();
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       bind(statement, params);
@@ -99,7 +120,48 @@ public final class SqliteStore {
     }
   }
 
-  public void close() {
+  public synchronized List<String> queryStrings(String sql, Object... params) {
+    ensureOpen();
+    List<String> out = new ArrayList<String>();
+    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+      bind(statement, params);
+      try (ResultSet rs = statement.executeQuery()) {
+        while (rs.next()) {
+          out.add(rs.getString(1));
+        }
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException("sqlite queryStrings failed: " + e.getMessage(), e);
+    }
+    return out;
+  }
+
+  public synchronized void transaction(Runnable work) {
+    if (work == null) {
+      throw new IllegalArgumentException("work");
+    }
+    ensureOpen();
+    boolean previous = true;
+    try {
+      previous = connection.getAutoCommit();
+      connection.setAutoCommit(false);
+      work.run();
+      connection.commit();
+    } catch (Exception e) {
+      try {
+        connection.rollback();
+      } catch (SQLException ignored) {
+      }
+      throw new IllegalStateException("sqlite transaction failed: " + e.getMessage(), e);
+    } finally {
+      try {
+        connection.setAutoCommit(previous);
+      } catch (SQLException ignored) {
+      }
+    }
+  }
+
+  public synchronized void close() {
     if (connection == null) {
       return;
     }
@@ -127,7 +189,17 @@ public final class SqliteStore {
     try {
       Class.forName("org.sqlite.JDBC");
       connection = DriverManager.getConnection("jdbc:sqlite:" + file.getAbsolutePath());
-    } catch (ClassNotFoundException | SQLException e) {
+      try (PreparedStatement wal = connection.prepareStatement("PRAGMA journal_mode=WAL")) {
+        wal.execute();
+      } catch (SQLException ignored) {
+      }
+      try (PreparedStatement sync = connection.prepareStatement("PRAGMA synchronous=NORMAL")) {
+        sync.execute();
+      } catch (SQLException ignored) {
+      }
+    } catch (ClassNotFoundException e) {
+      throw new IllegalStateException("Could not open sqlite \"" + name + "\": " + e.getMessage(), e);
+    } catch (SQLException e) {
       throw new IllegalStateException("Could not open sqlite \"" + name + "\": " + e.getMessage(), e);
     }
   }

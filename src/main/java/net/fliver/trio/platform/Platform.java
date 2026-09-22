@@ -32,7 +32,8 @@ public final class Platform {
   private final boolean purpur;
   private final boolean brigadierLifecycle;
   private final int recommendedJava;
-  private volatile boolean logged;
+  private static final java.util.Set<String> LOGGED_PLUGINS =
+      java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
 
   private Platform(
       Kind kind,
@@ -126,11 +127,31 @@ public final class Platform {
     return recommendedJava;
   }
 
+  public boolean minecraftAtLeast(int major, int minor) {
+    if (minecraftVersion == null) {
+      return false;
+    }
+    return minecraftVersion.atLeast(ServerVersion.of(major, minor));
+  }
+
+  public boolean minecraftAtLeast(int major, int minor, int patch) {
+    if (minecraftVersion == null) {
+      return false;
+    }
+    return minecraftVersion.atLeast(ServerVersion.of(major, minor, patch));
+  }
+
   public void logEnvironment(Plugin plugin) {
-    if (logged || plugin == null) {
+    if (plugin == null) {
       return;
     }
-    logged = true;
+    String pluginName = plugin.getName();
+    if (pluginName == null) {
+      pluginName = "unknown";
+    }
+    if (!LOGGED_PLUGINS.add(pluginName)) {
+      return;
+    }
     Logger log = plugin.getLogger();
     int runtime = currentJavaFeature();
     StringBuilder line = new StringBuilder();

@@ -64,4 +64,18 @@ public final class Permissions {
     }
     return sender.hasPermission(node);
   }
+
+  public void unregister(String node) {
+    if (node == null || node.isEmpty()) {
+      return;
+    }
+    try {
+      PluginManager pm = Bukkit.getPluginManager();
+      Permission existing = pm.getPermission(node);
+      if (existing != null) {
+        pm.removePermission(existing);
+      }
+    } catch (Throwable ignored) {
+    }
+  }
 }

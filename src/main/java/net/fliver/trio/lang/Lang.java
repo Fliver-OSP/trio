@@ -110,11 +110,51 @@ public final class Lang {
   }
 
   public boolean has(String key) {
-    return resolveRaw(key) != null;
+    return resolveRaw(key) != null || resolveList(key) != null;
   }
 
   public String template(String key) {
     return resolveRaw(key);
+  }
+
+  public java.util.List<String> list(String key, String... placeholders) {
+    java.util.List<String> found = resolveList(key);
+    if (found == null) {
+      java.util.List<String> empty = new java.util.ArrayList<String>();
+      empty.add(key);
+      return empty;
+    }
+    java.util.List<String> out = new java.util.ArrayList<String>(found.size());
+    for (String line : found) {
+      out.add(apply(line == null ? "" : line, placeholders));
+    }
+    return out;
+  }
+
+  public java.util.List<String> coloredList(String key, String... placeholders) {
+    java.util.List<String> lines = list(key, placeholders);
+    java.util.List<String> out = new java.util.ArrayList<String>(lines.size());
+    for (String line : lines) {
+      if (AdventureBridge.looksLikeMiniMessage(line) && AdventureBridge.available()) {
+        out.add(AdventureBridge.toLegacy(line));
+      } else {
+        out.add(ChatColor.translateAlternateColorCodes('&', line));
+      }
+    }
+    return out;
+  }
+
+  private java.util.List<String> resolveList(String key) {
+    if (key == null) {
+      return null;
+    }
+    if (messages.isList(key)) {
+      return messages.getStringList(key);
+    }
+    if (defaults.isList(key)) {
+      return defaults.getStringList(key);
+    }
+    return null;
   }
 
   public String raw(String key, String... placeholders) {

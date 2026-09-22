@@ -13,18 +13,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import net.fliver.trio.schedule.RegionScheduler;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Http {
-  private static final String USER_AGENT = "Trio/0.5.1-beta";
+  private static final String DEFAULT_USER_AGENT = "Trio/0.6.0-beta";
   private static final int DEFAULT_MAX_BYTES = 4 * 1024 * 1024;
 
   private static final ExecutorService WORKERS =
-      Executors.newCachedThreadPool(
+      new java.util.concurrent.ThreadPoolExecutor(
+          2,
+          8,
+          60L,
+          java.util.concurrent.TimeUnit.SECONDS,
+          new java.util.concurrent.LinkedBlockingQueue<Runnable>(200),
           new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -32,9 +36,12 @@ public final class Http {
               t.setDaemon(true);
               return t;
             }
-          });
+          },
+          new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
 
   private final JavaPlugin plugin;
+  private volatile String userAgent = DEFAULT_USER_AGENT;
+  private volatile int maxBytes = DEFAULT_MAX_BYTES;
 
   private Http(JavaPlugin plugin) {
     this.plugin = plugin;
@@ -44,8 +51,56 @@ public final class Http {
     return new Http(plugin);
   }
 
+  public static void shutdown() {
+    WORKERS.shutdown();
+  }
+
+  public Http userAgent(String value) {
+    if (value != null && !value.trim().isEmpty()) {
+      this.userAgent = value.trim();
+    }
+    return this;
+  }
+
+  public Http maxBytes(int value) {
+    if (value > 0) {
+      this.maxBytes = value;
+    }
+    return this;
+  }
+
   public void get(String url, Consumer<Response> onMain, Consumer<Throwable> onError) {
     request(Request.get(url), onMain, onError);
+  }
+
+  public void post(String url, String jsonBody, Consumer<Response> onMain, Consumer<Throwable> onError) {
+    Request req =
+        Request.builder(url).method("POST").header("Content-Type", "application/json").body(jsonBody).build();
+    request(req, onMain, onError);
+  }
+
+  public void put(String url, String jsonBody, Consumer<Response> onMain, Consumer<Throwable> onError) {
+    Request req =
+        Request.builder(url).method("PUT").header("Content-Type", "application/json").body(jsonBody).build();
+    request(req, onMain, onError);
+  }
+
+  public void delete(String url, Consumer<Response> onMain, Consumer<Throwable> onError) {
+    Request req = Request.builder(url).method("DELETE").build();
+    request(req, onMain, onError);
+  }
+
+  public void getWithHeaders(
+      String url, Map<String, String> headers, Consumer<Response> onMain, Consumer<Throwable> onError) {
+    Request.Builder builder = Request.builder(url).method("GET");
+    if (headers != null) {
+      for (Map.Entry<String, String> entry : headers.entrySet()) {
+        if (entry.getKey() != null && entry.getValue() != null) {
+          builder.header(entry.getKey(), entry.getValue());
+        }
+      }
+    }
+    request(builder.build(), onMain, onError);
   }
 
   public void request(
@@ -88,7 +143,9 @@ public final class Http {
     connection.setRequestMethod(req.method().toUpperCase());
     connection.setConnectTimeout((int) Math.min(Integer.MAX_VALUE, req.timeout().toMillis()));
     connection.setReadTimeout((int) Math.min(Integer.MAX_VALUE, req.timeout().toMillis()));
-    connection.setRequestProperty("User-Agent", USER_AGENT);
+    String agent = userAgent == null ? DEFAULT_USER_AGENT : userAgent;
+    connection.setRequestProperty("User-Agent", agent);
+    connection.setUseCaches(false);
     connection.setInstanceFollowRedirects(true);
 
     for (Map.Entry<String, String> header : req.headers().entrySet()) {
@@ -114,7 +171,7 @@ public final class Http {
     int status = connection.getResponseCode();
     InputStream stream =
         status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-    String responseBody = stream == null ? "" : readAll(stream, DEFAULT_MAX_BYTES);
+    String responseBody = stream == null ? "" : readAll(stream, maxBytes);
     Map<String, List<String>> headers = connection.getHeaderFields();
     Map<String, List<String>> copy = new HashMap<String, List<String>>();
     if (headers != null) {
@@ -255,6 +312,25 @@ public final class Http {
 
     public Map<String, List<String>> headers() {
       return headers;
+    }
+
+    public boolean ok() {
+      return status >= 200 && status < 300;
+    }
+
+    public String header(String name) {
+      if (name == null || headers == null) {
+        return null;
+      }
+      for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+        if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
+          List<String> values = entry.getValue();
+          if (values != null && !values.isEmpty()) {
+            return values.get(0);
+          }
+        }
+      }
+      return null;
     }
   }
 }

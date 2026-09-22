@@ -39,10 +39,15 @@ public final class Commands {
   }
 
   public static final class Tree implements CommandExecutor, TabCompleter {
-    private final Map<String, Tree> children = new LinkedHashMap<>();
+    private final Map<String, Tree> children = new LinkedHashMap<String, Tree>();
     private String permission;
     private BiConsumer<CommandSender, String[]> action;
     private String[] completions = new String[0];
+    private String usage;
+    private String denialMessage;
+    private boolean playerOnly;
+    private boolean consoleOnly;
+    private BiConsumer<CommandSender, String> denialHandler;
 
     public Tree permission(String permission) {
       this.permission = permission;
@@ -56,6 +61,33 @@ public final class Commands {
 
     public Tree completes(String... values) {
       this.completions = values == null ? new String[0] : values;
+      return this;
+    }
+
+    public Tree usage(String usage) {
+      this.usage = usage;
+      return this;
+    }
+
+    public Tree denialMessage(String message) {
+      this.denialMessage = message;
+      return this;
+    }
+
+    public Tree denied(BiConsumer<CommandSender, String> handler) {
+      this.denialHandler = handler;
+      return this;
+    }
+
+    public Tree playerOnly() {
+      this.playerOnly = true;
+      this.consoleOnly = false;
+      return this;
+    }
+
+    public Tree consoleOnly() {
+      this.consoleOnly = true;
+      this.playerOnly = false;
       return this;
     }
 
@@ -76,7 +108,28 @@ public final class Commands {
     }
 
     private static boolean dispatch(Tree node, CommandSender sender, String[] args, int index) {
+      if (node.playerOnly && !(sender instanceof org.bukkit.entity.Player)) {
+        sender.sendMessage(
+            org.bukkit.ChatColor.translateAlternateColorCodes(
+                '&', "&cOnly players can use that command."));
+        return true;
+      }
+      if (node.consoleOnly && (sender instanceof org.bukkit.entity.Player)) {
+        sender.sendMessage(
+            org.bukkit.ChatColor.translateAlternateColorCodes(
+                '&', "&cThat command is console only."));
+        return true;
+      }
       if (node.permission != null && !node.permission.isEmpty() && !sender.hasPermission(node.permission)) {
+        if (node.denialHandler != null) {
+          node.denialHandler.accept(sender, node.permission);
+          return true;
+        }
+        String text = node.denialMessage;
+        if (text == null || text.isEmpty()) {
+          text = "&cYou don't have permission for that.";
+        }
+        sender.sendMessage(org.bukkit.ChatColor.translateAlternateColorCodes('&', text));
         return true;
       }
 
@@ -84,6 +137,10 @@ public final class Commands {
         Tree child = node.children.get(args[index].toLowerCase(Locale.ROOT));
         if (child != null) {
           return dispatch(child, sender, args, index + 1);
+        }
+        if (node.usage != null && !node.usage.isEmpty()) {
+          sender.sendMessage(org.bukkit.ChatColor.translateAlternateColorCodes('&', node.usage));
+          return true;
         }
       }
 
@@ -96,6 +153,9 @@ public final class Commands {
         return true;
       }
 
+      if (node.usage != null && !node.usage.isEmpty()) {
+        sender.sendMessage(org.bukkit.ChatColor.translateAlternateColorCodes('&', node.usage));
+      }
       return true;
     }
 

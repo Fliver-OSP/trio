@@ -43,8 +43,20 @@ public final class Scheduler {
     RegionScheduler.runForEntity(plugin, entity, task, retired);
   }
 
+  public Object runAtLocation(org.bukkit.Location location, Runnable task, long delayTicks) {
+    return RegionScheduler.runAtLocation(plugin, location, task, delayTicks);
+  }
+
+  public Object runAtLocation(org.bukkit.Location location, Runnable task) {
+    return RegionScheduler.runAtLocation(plugin, location, task, 0L);
+  }
+
   public void cancel(Object task) {
     RegionScheduler.cancel(task);
+  }
+
+  public void cancelAll() {
+    RegionScheduler.cancelAll(plugin);
   }
 
   /** @deprecated Prefer {@link #cancel(Object)}; kept for callers that hold BukkitTask. */

@@ -1,6 +1,8 @@
 package net.fliver.trio;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import net.fliver.trio.command.BrigadierCommands;
 import net.fliver.trio.command.CommandRegistrar;
 import net.fliver.trio.command.Commands;
@@ -8,6 +10,7 @@ import net.fliver.trio.config.Configs;
 import net.fliver.trio.cooldown.Cooldowns;
 import net.fliver.trio.depend.SoftDepends;
 import net.fliver.trio.http.Http;
+import net.fliver.trio.json.Json;
 import net.fliver.trio.lang.Lang;
 import net.fliver.trio.menu.Menus;
 import net.fliver.trio.message.Messages;
@@ -16,6 +19,7 @@ import net.fliver.trio.platform.Platform;
 import net.fliver.trio.schedule.Scheduler;
 import net.fliver.trio.storage.SqliteStore;
 import net.fliver.trio.storage.YamlStore;
+import net.fliver.trio.update.Updates;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Trio {
@@ -122,5 +126,44 @@ public final class Trio {
 
   public boolean registerCommand(String pluginYmlName, BrigadierCommands.Node root) {
     return CommandRegistrar.register(plugin, pluginYmlName, root);
+  }
+
+  public Object parseJson(String input) {
+    return Json.parse(input);
+  }
+
+  public String toJson(Map<String, Object> values) {
+    return Json.stringify(values);
+  }
+
+  public void checkUpdates(
+      String url, Consumer<Updates.Release> onNewVersion, Consumer<Throwable> onError) {
+    String current;
+    try {
+      current = plugin.getDescription().getVersion();
+    } catch (Throwable ignored) {
+      current = "0";
+    }
+    Updates.check(http, url, current, onNewVersion, onError);
+  }
+
+  public void close() {
+    try {
+      scheduler.cancelAll();
+    } catch (Throwable ignored) {
+    }
+    for (SqliteStore store : sqliteStores.values()) {
+      try {
+        store.close();
+      } catch (Throwable ignored) {
+      }
+    }
+    for (YamlStore store : stores.values()) {
+      try {
+        store.saveAll();
+      } catch (Throwable ignored) {
+      }
+    }
+    cooldowns.purgeExpired();
   }
 }

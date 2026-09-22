@@ -1,11 +1,16 @@
 package net.fliver.trio.schedule;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import net.fliver.trio.platform.Platform;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -14,13 +19,17 @@ public final class RegionScheduler {
   private static volatile Boolean folia;
   private static Method getGlobalRegionScheduler;
   private static Method getAsyncScheduler;
+  private static Method getRegionScheduler;
   private static Method globalRun;
   private static Method globalRunDelayed;
   private static Method globalRunAtFixedRate;
+  private static Method regionRunDelayed;
   private static Method asyncRunNow;
   private static Method entityGetScheduler;
   private static Method entityRun;
   private static Method taskCancel;
+
+  private static final Map<Plugin, List<Object>> TRACKED = new ConcurrentHashMap<Plugin, List<Object>>();
 
   private RegionScheduler() {}
 
@@ -55,6 +64,22 @@ public final class RegionScheduler {
       }
       Object async = getAsyncScheduler.invoke(Bukkit.getServer());
       asyncRunNow = async.getClass().getMethod("runNow", Plugin.class, Consumer.class);
+      try {
+        getRegionScheduler = serverClass.getMethod("getRegionScheduler");
+        Object region = getRegionScheduler.invoke(Bukkit.getServer());
+        try {
+          regionRunDelayed =
+              region
+                  .getClass()
+                  .getMethod(
+                      "runDelayed", Plugin.class, Location.class, Consumer.class, long.class);
+        } catch (NoSuchMethodException e) {
+          regionRunDelayed = null;
+        }
+      } catch (NoSuchMethodException e) {
+        getRegionScheduler = null;
+        regionRunDelayed = null;
+      }
       entityGetScheduler = Entity.class.getMethod("getScheduler");
       Class<?> entitySched = entityGetScheduler.getReturnType();
       try {
@@ -79,11 +104,15 @@ public final class RegionScheduler {
 
   public static Object runSync(Plugin plugin, Runnable task) {
     if (!ensureInit()) {
-      return Bukkit.getScheduler().runTask(plugin, task);
+      Object handle = Bukkit.getScheduler().runTask(plugin, task);
+      track(plugin, handle);
+      return handle;
     }
     try {
       Object global = getGlobalRegionScheduler.invoke(Bukkit.getServer());
-      return globalRun.invoke(global, plugin, consumer(task));
+      Object handle = globalRun.invoke(global, plugin, consumer(task));
+      track(plugin, handle);
+      return handle;
     } catch (Throwable t) {
       plugin.getLogger().log(Level.WARNING, "Folia sync schedule failed: " + t.getMessage(), t);
       return null;
@@ -92,11 +121,15 @@ public final class RegionScheduler {
 
   public static Object runAsync(Plugin plugin, Runnable task) {
     if (!ensureInit()) {
-      return Bukkit.getScheduler().runTaskAsynchronously(plugin, task);
+      Object handle = Bukkit.getScheduler().runTaskAsynchronously(plugin, task);
+      track(plugin, handle);
+      return handle;
     }
     try {
       Object async = getAsyncScheduler.invoke(Bukkit.getServer());
-      return asyncRunNow.invoke(async, plugin, consumer(task));
+      Object handle = asyncRunNow.invoke(async, plugin, consumer(task));
+      track(plugin, handle);
+      return handle;
     } catch (Throwable t) {
       plugin.getLogger().log(Level.WARNING, "Folia async schedule failed: " + t.getMessage(), t);
       return null;
@@ -106,14 +139,38 @@ public final class RegionScheduler {
   public static Object runLater(Plugin plugin, Runnable task, long delayTicks) {
     long delay = Math.max(0L, delayTicks);
     if (!ensureInit()) {
-      return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+      Object handle = Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+      track(plugin, handle);
+      return handle;
     }
     try {
       Object global = getGlobalRegionScheduler.invoke(Bukkit.getServer());
-      return globalRunDelayed.invoke(global, plugin, consumer(task), Math.max(1L, delay));
+      Object handle = globalRunDelayed.invoke(global, plugin, consumer(task), Math.max(1L, delay));
+      track(plugin, handle);
+      return handle;
     } catch (Throwable t) {
       plugin.getLogger().log(Level.WARNING, "Folia delayed schedule failed: " + t.getMessage(), t);
       return null;
+    }
+  }
+
+  public static Object runAtLocation(Plugin plugin, Location location, Runnable task, long delayTicks) {
+    if (plugin == null || task == null) {
+      throw new IllegalArgumentException("plugin/task");
+    }
+    long delay = Math.max(0L, delayTicks);
+    if (!ensureInit() || getRegionScheduler == null || regionRunDelayed == null || location == null) {
+      return runLater(plugin, task, delay);
+    }
+    try {
+      Object region = getRegionScheduler.invoke(Bukkit.getServer());
+      Object handle =
+          regionRunDelayed.invoke(region, plugin, location, consumer(task), Math.max(1L, delay));
+      track(plugin, handle);
+      return handle;
+    } catch (Throwable t) {
+      plugin.getLogger().log(Level.WARNING, "Folia region schedule failed: " + t.getMessage(), t);
+      return runLater(plugin, task, delay);
     }
   }
 
@@ -144,15 +201,22 @@ public final class RegionScheduler {
     long delay = Math.max(0L, delayTicks);
     long period = Math.max(1L, periodTicks);
     if (!ensureInit()) {
-      return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+      Object handle = Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+      track(plugin, handle);
+      return handle;
     }
     try {
       Object global = getGlobalRegionScheduler.invoke(Bukkit.getServer());
+      Object handle;
       if (globalRunAtFixedRate != null) {
-        return globalRunAtFixedRate.invoke(
-            global, plugin, consumer(task), Math.max(1L, delay), period);
+        handle =
+            globalRunAtFixedRate.invoke(
+                global, plugin, consumer(task), Math.max(1L, delay), period);
+      } else {
+        handle = scheduleSelfReschedule(plugin, task, delay, period);
       }
-      return scheduleSelfReschedule(plugin, task, delay, period);
+      track(plugin, handle);
+      return handle;
     } catch (Throwable t) {
       plugin.getLogger().log(Level.WARNING, "Folia timer schedule failed: " + t.getMessage(), t);
       return null;
@@ -235,14 +299,59 @@ public final class RegionScheduler {
       return;
     }
     if (handle instanceof Number) {
-      Bukkit.getScheduler().cancelTask(((Number) handle).intValue());
+      try {
+        Bukkit.getScheduler().cancelTask(((Number) handle).intValue());
+      } catch (Throwable ignored) {
+      }
       return;
     }
     if (taskCancel != null) {
       try {
         taskCancel.invoke(handle);
       } catch (Throwable ignored) {
-        // already cancelled / wrong type
+      }
+    }
+  }
+
+  public static void cancelAll(Plugin plugin) {
+    if (plugin == null) {
+      return;
+    }
+    List<Object> handles = TRACKED.remove(plugin);
+    if (handles != null) {
+      List<Object> copy;
+      synchronized (handles) {
+        copy = new ArrayList<Object>(handles);
+      }
+      for (Object handle : copy) {
+        try {
+          cancel(handle);
+        } catch (Throwable ignored) {
+        }
+      }
+    }
+    try {
+      Bukkit.getScheduler().cancelTasks(plugin);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private static void track(Plugin plugin, Object handle) {
+    if (plugin == null || handle == null) {
+      return;
+    }
+    List<Object> list = TRACKED.get(plugin);
+    if (list == null) {
+      List<Object> created = java.util.Collections.synchronizedList(new ArrayList<Object>());
+      List<Object> prev = TRACKED.putIfAbsent(plugin, created);
+      list = prev == null ? created : prev;
+    }
+    list.add(handle);
+    if (list.size() > 500) {
+      synchronized (list) {
+        while (list.size() > 500) {
+          list.remove(0);
+        }
       }
     }
   }
